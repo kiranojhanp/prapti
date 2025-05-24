@@ -1,1 +1,2 @@
-console.log("Hello via Bun!");
+export const one = 1;
+export const two = 2;
