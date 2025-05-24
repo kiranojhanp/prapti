@@ -1,0 +1,45 @@
+{
+  "name": "prapti",
+  "version": "0.0.0",
+  "description": "A lightweight wrapper on top of fetch with runtime type validation.",
+  "files": [
+    "dist/*"
+  ],
+  "types": "dist/index.d.mts",
+  "main": "dist/index.cjs.js",
+  "module": "dist/index.esm.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "require": "./dist/index.cjs.js",
+      "import": "./dist/index.esm.js"
+    }
+  },
+  "scripts": {
+    "build": "bun run src/scripts/build.ts",
+    "release": "npx bumpp --commit --push --tag"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+git@github.com:kiranojhanp/prapti.git"
+  },
+  "keywords": [
+    "prapti",
+    "fetch",
+    "zod"
+  ],
+  "author": "Kiran Ojha",
+  "license": "MIT",
+  "bugs": {
+    "url": "git@github.com:kiranojhanp/prapti.git/issues"
+  },
+  "homepage": "git@github.com:kiranojhanp/prapti.git#readme",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "bun-plugin-dts": "0.3.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5",
+    "zod": "^3.25.28"
+  }
+}
