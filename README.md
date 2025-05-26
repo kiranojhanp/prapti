@@ -8,13 +8,13 @@ _"प्राप्ति" (Prapti) - Sanskrit for "fetch" or "obtain"_
 
 ```typescript
 // Without Prapti
-const response = await fetch("/api/users");
+const response = await safeFetch("/api/users");
 const data = await response.json(); // any type
 const validatedData = UserSchema.parse(data); // manual validation
 
 // With Prapti
-const { fetch } = createPrapti(adapters.zod);
-const response = await fetch("/api/users", {
+const { fetch: safeFetch } = createPrapti(adapters.zod);
+const response = await safeFetch("/api/users", {
   responseSchema: UserSchema,
 });
 const data = await response.json(); // fully typed + validated
@@ -46,7 +46,7 @@ npm install prapti zod
 ## Usage
 
 ```typescript
-import { Prapti, adapters } from "prapti";
+import { createPrapti, adapters } from "prapti";
 import { z } from "zod";
 
 const UserSchema = z.object({
@@ -56,10 +56,10 @@ const UserSchema = z.object({
 });
 
 // Create client with Zod adapter
-const prapti = new Prapti(adapters.zod);
+const { fetch: safeFetch } = createPrapti(adapters.zod);
 
 // GET with response validation
-const response = await prapti.fetch("/api/users/1", {
+const response = await safeFetch("/api/users/1", {
   responseSchema: UserSchema,
 });
 const user = await response.json(); // Type: { id: number, name: string, email: string }
@@ -67,7 +67,7 @@ const user = await response.json(); // Type: { id: number, name: string, email: 
 // POST with request + response validation
 const CreateUserSchema = UserSchema.omit({ id: true });
 
-const newUser = await prapti.fetch("/api/users", {
+const newUser = await safeFetch("/api/users", {
   method: "POST",
   body: { name: "John", email: "john@example.com" },
   requestSchema: CreateUserSchema,
@@ -115,14 +115,14 @@ const customAdapter = {
   },
 };
 
-const prapti = new Prapti(customAdapter);
+const { fetch: safeFetch } = createPrapti(customAdapter);
 ```
 
 ## Error Handling
 
 ```typescript
 try {
-  const response = await prapti.fetch("/api/users", {
+  const response = await safeFetch("/api/users", {
     responseSchema: UserSchema,
   });
   const users = await response.json();
@@ -134,7 +134,13 @@ try {
 
 ## Upcoming Features
 
-- 🔄 Built-in adapters for Valibot, Yup, Joi, Custom
+- 🔄 **Built-in adapters for Valibot, Yup, Joi, AJV**
+- 🎨 **Custom adapter utilities and helpers**
+- 🛡️ **Enhanced error types with validation details**
+- 🎯 **Header validation with schemas**
+- ⚡ **Zero-config TypeScript integration**
+- 📦 **FormData and URLSearchParams validation**
+- 🔄 **Streaming response validation**
 
 ## License
 
