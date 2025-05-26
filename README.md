@@ -13,7 +13,8 @@ const data = await response.json(); // any type
 const validatedData = UserSchema.parse(data); // manual validation
 
 // With Prapti
-const response = await prapti.fetch("/api/users", {
+const { fetch } = createPrapti(adapters.zod);
+const response = await fetch("/api/users", {
   responseSchema: UserSchema,
 });
 const data = await response.json(); // fully typed + validated
