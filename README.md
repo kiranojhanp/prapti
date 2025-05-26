@@ -10,7 +10,7 @@ _"प्राप्ति" (Prapti) - Sanskrit for "fetch" or "obtain"_
 // Without Prapti
 const response = await fetch("/api/users");
 const data = await response.json(); // any type
-const validatedData = userSchema.parse(data); // manual validation
+const validatedData = UserSchema.parse(data); // manual validation
 
 // With Prapti
 const response = await prapti.fetch("/api/users", {
