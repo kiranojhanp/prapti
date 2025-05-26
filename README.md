@@ -6,9 +6,14 @@ _"प्राप्ति" (Prapti) - Sanskrit for "fetch" or "obtain"_
 
 > A minimal, type-safe HTTP client that extends the native `fetch` API with runtime schema validation.
 
+![NPM Version](https://img.shields.io/npm/v/prapti)
+[![npm min + gzip size](https://badgen.net/bundlephobia/minzip/prapti)](https://bundlephobia.com/result?p=prapti)
+[![License](https://img.shields.io/badge/License-MIT-blue)](#license)
+[![issues - prapti](https://img.shields.io/github/issues/kiranojhanp/prapti)](https://github.com/kiranojhanp/prapti/issues)
+
 ```typescript
 // Without Prapti
-const response = await safeFetch("/api/users");
+const response = await fetch("/api/users");
 const data = await response.json(); // any type
 const validatedData = UserSchema.parse(data); // manual validation
 
@@ -144,7 +149,7 @@ try {
 
 ## License
 
-MIT
+Released under [MIT](/LICENSE) by [@kiranojhanp](https://github.com/kiranojhanp).
 
 ---
 
