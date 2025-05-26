@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll } from "bun:test";
-import { SafeFetch, adapters, createSafeFetch } from "../src/index";
+import { Prapti, adapters, createPrapti } from "../src/index";
 import { z } from "zod";
 
 // Zod schemas for JSONPlaceholder API
@@ -55,16 +55,16 @@ const TodoSchema = z.object({
   completed: z.boolean(),
 });
 
-describe("SafeFetch with Zod and JSONPlaceholder", () => {
-  let safeFetch: SafeFetch<z.ZodSchema>;
+describe("Prapti with Zod and JSONPlaceholder", () => {
+  let prapti: Prapti<z.ZodSchema>;
 
   beforeAll(() => {
-    safeFetch = new SafeFetch(adapters.zod);
+    prapti = new Prapti(adapters.zod);
   });
 
   describe("GET requests with type inference", () => {
     test("should fetch a single user with full type safety", async () => {
-      const response = await safeFetch.fetch(
+      const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/users/1",
         {
           responseSchema: UserSchema,
@@ -89,7 +89,7 @@ describe("SafeFetch with Zod and JSONPlaceholder", () => {
     test("should fetch all users as array", async () => {
       const UsersArraySchema = z.array(UserSchema);
 
-      const response = await safeFetch.fetch(
+      const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/users",
         {
           responseSchema: UsersArraySchema,
@@ -109,7 +109,7 @@ describe("SafeFetch with Zod and JSONPlaceholder", () => {
     });
 
     test("should fetch a single post with validation", async () => {
-      const response = await safeFetch.fetch(
+      const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/posts/1",
         {
           responseSchema: PostSchema,
@@ -129,7 +129,7 @@ describe("SafeFetch with Zod and JSONPlaceholder", () => {
     test("should fetch comments for a post", async () => {
       const CommentsArraySchema = z.array(CommentSchema);
 
-      const response = await safeFetch.fetch(
+      const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/posts/1/comments",
         {
           responseSchema: CommentsArraySchema,
@@ -151,7 +151,7 @@ describe("SafeFetch with Zod and JSONPlaceholder", () => {
     test("should fetch todos with boolean validation", async () => {
       const TodosArraySchema = z.array(TodoSchema);
 
-      const response = await safeFetch.fetch(
+      const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/todos",
         {
           responseSchema: TodosArraySchema,
@@ -170,7 +170,7 @@ describe("SafeFetch with Zod and JSONPlaceholder", () => {
     });
 
     test("should handle 404 errors gracefully", async () => {
-      const response = await safeFetch.fetch(
+      const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/users/999",
         {
           responseSchema: UserSchema,
@@ -190,7 +190,7 @@ describe("SafeFetch with Zod and JSONPlaceholder", () => {
         userId: 1,
       };
 
-      const response = await safeFetch.fetch(
+      const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/posts",
         {
           method: "POST",
@@ -220,7 +220,7 @@ describe("SafeFetch with Zod and JSONPlaceholder", () => {
       };
 
       await expect(
-        safeFetch.fetch("https://jsonplaceholder.typicode.com/posts", {
+        prapti.fetch("https://jsonplaceholder.typicode.com/posts", {
           method: "POST",
           body: invalidPostData,
           requestSchema: CreatePostSchema,
@@ -242,7 +242,7 @@ describe("SafeFetch with Zod and JSONPlaceholder", () => {
         userId: 1,
       };
 
-      const response = await safeFetch.fetch(
+      const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/posts/1",
         {
           method: "PUT",
@@ -263,7 +263,7 @@ describe("SafeFetch with Zod and JSONPlaceholder", () => {
 
   describe("DELETE requests", () => {
     test("should delete a post", async () => {
-      const response = await safeFetch.fetch(
+      const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/posts/1",
         {
           method: "DELETE",
@@ -278,7 +278,7 @@ describe("SafeFetch with Zod and JSONPlaceholder", () => {
   describe("Error handling with Zod validation", () => {
     test("should handle network errors", async () => {
       await expect(
-        safeFetch.fetch("https://nonexistent-domain-12345.com/api")
+        prapti.fetch("https://nonexistent-domain-12345.com/api")
       ).rejects.toThrow();
     });
 
@@ -288,7 +288,7 @@ describe("SafeFetch with Zod and JSONPlaceholder", () => {
         invalidField: z.string(), // This field doesn't exist in JSONPlaceholder response
       });
 
-      const response = await safeFetch.fetch(
+      const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/users/1",
         {
           responseSchema: StrictUserSchema,
@@ -310,7 +310,7 @@ describe("SafeFetch with Zod and JSONPlaceholder", () => {
           }),
       });
 
-      const response = await safeFetch.fetch(
+      const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/users/1",
         {
           responseSchema: InvalidEmailUserSchema,
@@ -323,7 +323,7 @@ describe("SafeFetch with Zod and JSONPlaceholder", () => {
 
   describe("Response type methods with validation", () => {
     test("should handle text response", async () => {
-      const response = await safeFetch.fetch(
+      const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/posts/1"
       );
       const textData = await response.text();
@@ -333,7 +333,7 @@ describe("SafeFetch with Zod and JSONPlaceholder", () => {
     });
 
     test("should handle blob response", async () => {
-      const response = await safeFetch.fetch(
+      const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/posts/1"
       );
       const blobData = await response.blob();
@@ -343,14 +343,20 @@ describe("SafeFetch with Zod and JSONPlaceholder", () => {
   });
 });
 
-describe("createSafeFetch factory function", () => {
-  test("should create SafeFetch instance with Zod adapter", () => {
-    const instance = createSafeFetch(adapters.zod);
-    expect(instance).toBeInstanceOf(SafeFetch);
+describe("createprapti factory function", () => {
+  let prapti: Prapti<z.ZodSchema>;
+
+  beforeAll(() => {
+    prapti = new Prapti(adapters.zod);
+  });
+
+  test("should create prapti instance with Zod adapter", () => {
+    const instance = createPrapti(adapters.zod);
+    expect(instance).toBeInstanceOf(Prapti);
   });
 
   test("should work with created instance", async () => {
-    const prapti = createSafeFetch(adapters.zod);
+    const prapti = createPrapti(adapters.zod);
 
     const response = await prapti.fetch(
       "https://jsonplaceholder.typicode.com/users/1",
@@ -366,16 +372,16 @@ describe("createSafeFetch factory function", () => {
 });
 
 describe("Advanced Zod schema features", () => {
-  let safeFetch: SafeFetch<z.ZodSchema>;
+  let prapti: Prapti<z.ZodSchema>;
 
   beforeAll(() => {
-    safeFetch = new SafeFetch(adapters.zod);
+    prapti = new Prapti(adapters.zod);
   });
 
   test("should handle optional fields", async () => {
     const PartialUserSchema = UserSchema.partial();
 
-    const response = await safeFetch.fetch(
+    const response = await prapti.fetch(
       "https://jsonplaceholder.typicode.com/users/1",
       {
         responseSchema: PartialUserSchema,
@@ -393,7 +399,7 @@ describe("Advanced Zod schema features", () => {
       isLongPost: post.body.length > 100,
     }));
 
-    const response = await safeFetch.fetch(
+    const response = await prapti.fetch(
       "https://jsonplaceholder.typicode.com/posts/1",
       {
         responseSchema: TransformedPostSchema,
@@ -408,7 +414,7 @@ describe("Advanced Zod schema features", () => {
   test("should handle union schemas", async () => {
     const UserOrPostSchema = z.union([UserSchema, PostSchema]);
 
-    const response = await safeFetch.fetch(
+    const response = await prapti.fetch(
       "https://jsonplaceholder.typicode.com/posts/1",
       {
         responseSchema: UserOrPostSchema,

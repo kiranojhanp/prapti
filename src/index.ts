@@ -34,7 +34,7 @@ type InferOutput<T> = T extends { _output: infer U }
  * Extended fetch options with optional validation schemas
  * Maintains compatibility with native RequestInit while adding validation
  */
-interface SafeFetchOptions<TRequestSchema = unknown, TResponseSchema = unknown>
+interface PraptiOptions<TRequestSchema = unknown, TResponseSchema = unknown>
   extends Omit<RequestInit, "body"> {
   /** Request body - can be any serializable data when using requestSchema */
   body?: BodyInit | null | unknown;
@@ -124,9 +124,9 @@ class ValidatedResponse<T = unknown> extends Response {
  * Type-safe HTTP client with validation capabilities
  * Wraps native fetch API with schema validation support
  */
-class SafeFetch<TSchema = unknown> {
+class Prapti<TSchema = unknown> {
   /**
-   * Create a new SafeFetch instance
+   * Create a new Prapti instance
    * @param adapter - Validation adapter for chosen schema library
    */
   constructor(private adapter: ValidationAdapter<TSchema>) {}
@@ -139,7 +139,7 @@ class SafeFetch<TSchema = unknown> {
    */
   async fetch<TResponseSchema extends TSchema = never>(
     input: RequestInfo | URL,
-    options?: SafeFetchOptions<TSchema, TResponseSchema>
+    options?: PraptiOptions<TSchema, TResponseSchema>
   ): Promise<
     ValidatedResponse<
       TResponseSchema extends never ? unknown : InferOutput<TResponseSchema>
@@ -186,14 +186,14 @@ class SafeFetch<TSchema = unknown> {
 }
 
 /**
- * Convenience function to create SafeFetch instance
+ * Convenience function to create Prapti instance
  * @param adapter - Validation adapter
- * @returns New SafeFetch instance
+ * @returns New Prapti instance
  */
-function createSafeFetch<TSchema>(
+function createPrapti<TSchema>(
   adapter: ValidationAdapter<TSchema>
-): SafeFetch<TSchema> {
-  return new SafeFetch(adapter);
+): Prapti<TSchema> {
+  return new Prapti(adapter);
 }
 
 /**
@@ -212,5 +212,5 @@ const adapters = {
 };
 
 // Export core types and classes
-export { adapters, SafeFetch, createSafeFetch, ValidatedResponse };
-export type { InferOutput, SafeFetchOptions, ValidationAdapter };
+export { adapters, Prapti, createPrapti, ValidatedResponse };
+export type { InferOutput, PraptiOptions, ValidationAdapter };
