@@ -168,15 +168,92 @@ class ValidatedResponse<T = unknown, THeadersSchema = any> extends Response {
    * @returns Promise resolving to FormData
    */
   async formData(): Promise<FormData> {
-    const data = await super.formData();
+    const formData = await super.formData();
 
     if (this.responseSchema) {
       // Convert FormData to plain object for validation
-      const obj = Object.fromEntries(data.entries());
-      this.adapter.parse(this.responseSchema, obj);
+      const obj: Record<string, unknown> = {};
+      formData.forEach((value, key) => {
+        if (obj[key] !== undefined) {
+          if (Array.isArray(obj[key])) {
+            (obj[key] as unknown[]).push(value);
+          } else {
+            obj[key] = [obj[key], value];
+          }
+        } else {
+          obj[key] = value;
+        }
+      });
+
+      // Validate the object against schema
+      const validatedData = this.adapter.parse(this.responseSchema, obj);
+
+      // If validation changes data, create new FormData with validated values
+      if (validatedData && typeof validatedData === "object") {
+        const validatedFormData = new FormData();
+        Object.entries(validatedData as Record<string, unknown>).forEach(
+          ([key, value]) => {
+            if (Array.isArray(value)) {
+              value.forEach((item) =>
+                validatedFormData.append(key, item as string | Blob)
+              );
+            } else {
+              validatedFormData.append(key, value as string | Blob);
+            }
+          }
+        );
+        return validatedFormData;
+      }
     }
 
-    return data;
+    return formData;
+  }
+
+  /**
+   * Parse URLSearchParams response and validate with schema if provided
+   * @returns Promise resolving to URLSearchParams
+   */
+  async urlSearchParams(): Promise<URLSearchParams> {
+    const text = await super.text();
+    const params = new URLSearchParams(text);
+
+    if (this.responseSchema) {
+      // Convert URLSearchParams to plain object for validation
+      const obj: Record<string, unknown> = {};
+      params.forEach((value, key) => {
+        if (obj[key] !== undefined) {
+          if (Array.isArray(obj[key])) {
+            (obj[key] as unknown[]).push(value);
+          } else {
+            obj[key] = [obj[key], value];
+          }
+        } else {
+          obj[key] = value;
+        }
+      });
+
+      // Validate the object against schema
+      const validatedData = this.adapter.parse(this.responseSchema, obj);
+
+      // If validation changes data, create new URLSearchParams with validated values
+      if (validatedData && typeof validatedData === "object") {
+        const validatedParams = new URLSearchParams();
+        Object.entries(validatedData as Record<string, unknown>).forEach(
+          ([key, value]) => {
+            if (Array.isArray(value)) {
+              value.forEach((item) =>
+                validatedParams.append(key, String(item))
+              );
+            } else {
+              validatedParams.append(key, String(value));
+            }
+          }
+        );
+        return validatedParams;
+      }
+    }
+
+    return params;
   }
 }
 
@@ -226,6 +303,50 @@ class Prapti<TSchema = unknown> {
       obj[key.toLowerCase()] = String(value);
     });
     return obj;
+  }
+
+  /**
+   * Convert FormData object to plain object for validation
+   * @private
+   */
+  private formDataToObject(formData: FormData): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+    formData.forEach((value, key) => {
+      // Handle multiple values for the same key
+      if (result[key] !== undefined) {
+        if (Array.isArray(result[key])) {
+          (result[key] as unknown[]).push(value);
+        } else {
+          result[key] = [result[key], value];
+        }
+      } else {
+        result[key] = value;
+      }
+    });
+    return result;
+  }
+
+  /**
+   * Convert URLSearchParams to plain object for validation
+   * @private
+   */
+  private urlSearchParamsToObject(
+    params: URLSearchParams
+  ): Record<string, unknown> {
+    const result: Record<string, unknown> = {};
+    params.forEach((value, key) => {
+      // Handle multiple values for the same key
+      if (result[key] !== undefined) {
+        if (Array.isArray(result[key])) {
+          (result[key] as unknown[]).push(value);
+        } else {
+          result[key] = [result[key], value];
+        }
+      } else {
+        result[key] = value;
+      }
+    });
+    return result;
   }
 
   /**
@@ -291,18 +412,65 @@ class Prapti<TSchema = unknown> {
 
     // Validate and process request body if schema provided
     if (requestSchema && body !== undefined && body !== null) {
-      // Parse string body if needed, otherwise use as-is
-      const parsedBody = typeof body === "string" ? JSON.parse(body) : body;
+      let parsedBody: unknown;
+
+      // Handle different body types for validation
+      if (typeof body === "string") {
+        try {
+          parsedBody = JSON.parse(body);
+        } catch {
+          parsedBody = body;
+        }
+      } else if (body instanceof FormData) {
+        parsedBody = this.formDataToObject(body);
+      } else if (body instanceof URLSearchParams) {
+        parsedBody = this.urlSearchParamsToObject(body);
+      } else {
+        parsedBody = body;
+      }
 
       // Validate request data against schema
-      const validatedBody = this.adapter.parse(requestSchema, parsedBody);
+      const validatedData = this.adapter.parse(requestSchema, parsedBody);
 
-      // Serialize for transmission
-      finalBody = JSON.stringify(validatedBody);
+      // Process the validated data based on original body type
+      if (body instanceof FormData) {
+        // Create new FormData with validated data
+        const validatedFormData = new FormData();
+        Object.entries(validatedData as Record<string, unknown>).forEach(
+          ([key, value]) => {
+            if (Array.isArray(value)) {
+              value.forEach((item) =>
+                validatedFormData.append(key, item as string | Blob)
+              );
+            } else {
+              validatedFormData.append(key, value as string | Blob);
+            }
+          }
+        );
+        finalBody = validatedFormData;
+      } else if (body instanceof URLSearchParams) {
+        // Create new URLSearchParams with validated data
+        const validatedParams = new URLSearchParams();
+        Object.entries(validatedData as Record<string, unknown>).forEach(
+          ([key, value]) => {
+            if (Array.isArray(value)) {
+              value.forEach((item) =>
+                validatedParams.append(key, String(item))
+              );
+            } else {
+              validatedParams.append(key, String(value));
+            }
+          }
+        );
+        finalBody = validatedParams;
+      } else {
+        // For JSON and other formats
+        finalBody = JSON.stringify(validatedData);
 
-      // Set content type if not already specified
-      if (!finalHeaders.has("Content-Type")) {
-        finalHeaders.set("Content-Type", "application/json");
+        // Set content type if not already specified
+        if (!finalHeaders.has("Content-Type")) {
+          finalHeaders.set("Content-Type", "application/json");
+        }
       }
     } else {
       // Use body as-is when no validation needed

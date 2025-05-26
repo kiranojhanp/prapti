@@ -168,7 +168,6 @@ try {
 
 - 🔄 **Built-in adapters for Valibot, Yup, Joi, AJV**
 - 🎨 **Custom adapter utilities and helpers**
-- 📦 **FormData and URLSearchParams validation**
 - 🔄 **Streaming response validation**
 
 ## License
