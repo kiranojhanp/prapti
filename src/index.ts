@@ -54,14 +54,8 @@ class ValidatedResponse<T = unknown> extends Response {
     private adapter: ValidationAdapter<any>,
     private responseSchema?: any
   ) {
-    super(response.body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers,
-    });
-
-    // Preserve prototype chain for proper instanceof checks
-    Object.setPrototypeOf(this, new.target.prototype);
+    super(response.body, response);
+    Object.setPrototypeOf(this, ValidatedResponse.prototype);
   }
 
   /**

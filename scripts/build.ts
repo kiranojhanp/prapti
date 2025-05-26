@@ -4,6 +4,15 @@ import dts from "bun-plugin-dts";
 const defaultBuildConfig: BuildConfig = {
   entrypoints: ["./src/index.ts"],
   outdir: "./dist",
+  minify: true, // Enable minification
+  sourcemap: "none", // Disable source maps for smaller builds
+  target: "browser", // Target modern environments for smaller output
+  splitting: false, // Disable code splitting for libraries
+  external: ["zod"], // Don't bundle peer dependencies
+  drop: ["console", "debugger"], // Remove console.log and debugger statements
+  define: {
+    "process.env.NODE_ENV": '"production"',
+  },
 };
 
 const timeStart = performance.now();
