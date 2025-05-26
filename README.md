@@ -1,8 +1,10 @@
+![prapti](media/logo.png)
+
 # Prapti 🚀
 
 _"प्राप्ति" (Prapti) - Sanskrit for "fetch" or "obtain"_
 
-A minimal, type-safe HTTP client that extends the native `fetch` API with runtime schema validation.
+> A minimal, type-safe HTTP client that extends the native `fetch` API with runtime schema validation.
 
 ```typescript
 // Without Prapti
@@ -16,6 +18,23 @@ const response = await prapti.fetch("/api/users", {
 });
 const data = await response.json(); // fully typed + validated
 ```
+
+## Why switch from `fetch`?
+
+**🎯 Stop writing `any` types**  
+Get automatic TypeScript inference from your schemas. No more manual type assertions.
+
+**🛡️ Catch API breaks at runtime**  
+Validate responses against your schema. Know immediately when APIs change unexpectedly.
+
+**🔧 Eliminate validation boilerplate**  
+No more `schema.parse(await response.json())` on every API call. It's built-in.
+
+**⚡ Drop-in replacement**  
+Same API as `fetch()` with optional superpowers. Add validation only where you need it.
+
+**🎨 Use any validation library**  
+Bring your own: Zod, Valibot, Yup, Joi, or build custom adapters.
 
 ## Install
 
@@ -114,14 +133,14 @@ try {
 
 ## Upcoming Features
 
-- 🔄 Built-in adapters for Valibot, Yup, Joi
-- 🔄 Request/response interceptors
-- 🔄 Retry logic with exponential backoff
-- 🔄 Request cancellation with AbortController
-- 🔄 Response caching
-- 🔄 File upload helpers
-- 🔄 Streaming response support
+- 🔄 Built-in adapters for Valibot, Yup, Joi, Custom
 
 ## License
 
 MIT
+
+---
+
+<div align="center">
+Made with ❤️ from 🇳🇵
+</div>
