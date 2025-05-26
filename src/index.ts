@@ -34,28 +34,82 @@ type InferOutput<T> = T extends { _output: infer U }
  * Extended fetch options with optional validation schemas
  * Maintains compatibility with native RequestInit while adding validation
  */
-interface PraptiOptions<TRequestSchema = unknown, TResponseSchema = unknown>
-  extends Omit<RequestInit, "body"> {
+interface PraptiOptions<
+  TRequestSchema = unknown,
+  TResponseSchema = unknown,
+  TRequestHeadersSchema = unknown,
+  TResponseHeadersSchema = unknown
+> extends Omit<RequestInit, "body" | "headers"> {
   /** Request body - can be any serializable data when using requestSchema */
   body?: BodyInit | null | unknown;
+  /** Request headers - can be HeadersInit or plain object when using requestHeadersSchema */
+  headers?: HeadersInit | Record<string, unknown>;
   /** Schema to validate request body against */
   requestSchema?: TRequestSchema;
   /** Schema to validate response data against */
   responseSchema?: TResponseSchema;
+  /** Schema to validate request headers against */
+  requestHeadersSchema?: TRequestHeadersSchema;
+  /** Schema to validate response headers against */
+  responseHeadersSchema?: TResponseHeadersSchema;
 }
 
 /**
  * Enhanced Response class with validation-aware methods
  * Extends native Response to provide type-safe data parsing
  */
-class ValidatedResponse<T = unknown> extends Response {
+class ValidatedResponse<T = unknown, THeadersSchema = any> extends Response {
   constructor(
     response: Response,
     private adapter: ValidationAdapter<any>,
-    private responseSchema?: any
+    private responseSchema?: any,
+    private responseHeadersSchema?: THeadersSchema
   ) {
     super(response.body, response);
     Object.setPrototypeOf(this, ValidatedResponse.prototype);
+
+    // Validate response headers if schema provided
+    if (responseHeadersSchema) {
+      this.validateResponseHeaders();
+    }
+  }
+
+  /**
+   * Validate response headers against schema
+   * @private
+   */
+  private validateResponseHeaders(): void {
+    if (!this.responseHeadersSchema) return;
+
+    // Convert Headers to plain object for validation
+    const headersObj: Record<string, string> = {};
+    this.headers.forEach((value, key) => {
+      headersObj[key.toLowerCase()] = value;
+    });
+
+    // Validate headers - this will throw if validation fails
+    this.adapter.parse(this.responseHeadersSchema, headersObj);
+  }
+
+  /**
+   * Get validated headers as typed object
+   * @returns Validated headers object if schema provided, otherwise plain object
+   */
+  getValidatedHeaders<
+    T = THeadersSchema extends { _output: infer U }
+      ? U
+      : THeadersSchema extends { _type: infer U }
+      ? U
+      : Record<string, string>
+  >(): T {
+    const headersObj: Record<string, string> = {};
+    this.headers.forEach((value, key) => {
+      headersObj[key.toLowerCase()] = value;
+    });
+
+    return this.responseHeadersSchema
+      ? this.adapter.parse<T>(this.responseHeadersSchema, headersObj)
+      : (headersObj as unknown as T);
   }
 
   /**
@@ -126,24 +180,98 @@ class Prapti<TSchema = unknown> {
   constructor(private adapter: ValidationAdapter<TSchema>) {}
 
   /**
+   * Convert Headers object or HeadersInit to plain object
+   * @private
+   */
+  private headersToObject(
+    headers: HeadersInit | Record<string, unknown> | undefined
+  ): Record<string, string> {
+    if (!headers) return {};
+
+    if (headers instanceof Headers) {
+      const obj: Record<string, string> = {};
+      headers.forEach((value, key) => {
+        obj[key.toLowerCase()] = value;
+      });
+      return obj;
+    }
+
+    if (Array.isArray(headers)) {
+      const obj: Record<string, string> = {};
+      headers.forEach(([key, value]) => {
+        obj[key.toLowerCase()] = String(value);
+      });
+      return obj;
+    }
+
+    // Plain object - normalize keys to lowercase
+    const obj: Record<string, string> = {};
+    Object.entries(headers).forEach(([key, value]) => {
+      obj[key.toLowerCase()] = String(value);
+    });
+    return obj;
+  }
+
+  /**
    * Make an HTTP request with optional request/response validation
    * @param input - Request URL or Request object
    * @param options - Extended fetch options with validation schemas
    * @returns Promise resolving to ValidatedResponse with inferred types
    */
-  async fetch<TResponseSchema extends TSchema = never>(
+  async fetch<
+    TResponseSchema extends TSchema = never,
+    TResponseHeadersSchema extends TSchema = never
+  >(
     input: RequestInfo | URL,
-    options?: PraptiOptions<TSchema, TResponseSchema>
+    options?: PraptiOptions<
+      TSchema,
+      TResponseSchema,
+      TSchema,
+      TResponseHeadersSchema
+    >
   ): Promise<
     ValidatedResponse<
-      TResponseSchema extends never ? unknown : InferOutput<TResponseSchema>
+      TResponseSchema extends never ? unknown : InferOutput<TResponseSchema>,
+      TResponseHeadersSchema
     >
   > {
-    const { requestSchema, responseSchema, body, ...fetchOptions } =
-      options || {};
+    const {
+      requestSchema,
+      responseSchema,
+      requestHeadersSchema,
+      responseHeadersSchema,
+      body,
+      headers,
+      ...fetchOptions
+    } = options || {};
 
     let finalBody: BodyInit | null | undefined;
-    const headers = new Headers(fetchOptions.headers);
+    let finalHeaders = new Headers();
+
+    // Process and validate request headers
+    if (headers) {
+      const headersObj = this.headersToObject(headers);
+
+      // Validate request headers if schema provided
+      if (requestHeadersSchema) {
+        const validatedHeaders = this.adapter.parse(
+          requestHeadersSchema,
+          headersObj
+        );
+        if (validatedHeaders && typeof validatedHeaders === "object") {
+          Object.entries(validatedHeaders as Record<string, unknown>).forEach(
+            ([key, value]) => {
+              finalHeaders.set(key, String(value));
+            }
+          );
+        }
+      } else {
+        // Use headers as-is
+        Object.entries(headersObj).forEach(([key, value]) => {
+          finalHeaders.set(key, value);
+        });
+      }
+    }
 
     // Validate and process request body if schema provided
     if (requestSchema && body !== undefined && body !== null) {
@@ -157,8 +285,8 @@ class Prapti<TSchema = unknown> {
       finalBody = JSON.stringify(validatedBody);
 
       // Set content type if not already specified
-      if (!headers.has("Content-Type")) {
-        headers.set("Content-Type", "application/json");
+      if (!finalHeaders.has("Content-Type")) {
+        finalHeaders.set("Content-Type", "application/json");
       }
     } else {
       // Use body as-is when no validation needed
@@ -168,14 +296,15 @@ class Prapti<TSchema = unknown> {
     // Make the actual fetch request
     const response = await fetch(input, {
       ...fetchOptions,
-      headers,
+      headers: finalHeaders,
       body: finalBody,
     });
 
     // Return enhanced response with validation capabilities
     return new ValidatedResponse<
-      TResponseSchema extends never ? unknown : InferOutput<TResponseSchema>
-    >(response, this.adapter, responseSchema);
+      TResponseSchema extends never ? unknown : InferOutput<TResponseSchema>,
+      TResponseHeadersSchema
+    >(response, this.adapter, responseSchema, responseHeadersSchema);
   }
 }
 

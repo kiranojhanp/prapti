@@ -4,7 +4,7 @@
 
 _"प्राप्ति" (Prapti) - Sanskrit for "fetch" or "obtain"_
 
-> A minimal, type-safe HTTP client that extends the native `fetch` API with runtime schema validation.
+> A minimal, type-safe utility that extends the native `fetch` API with runtime schema validation.
 
 ![NPM Version](https://img.shields.io/npm/v/prapti)
 [![npm min + gzip size](https://badgen.net/bundlephobia/minzip/prapti)](https://bundlephobia.com/result?p=prapti)
@@ -78,6 +78,30 @@ const newUser = await safeFetch("/api/users", {
   requestSchema: CreateUserSchema,
   responseSchema: UserSchema,
 });
+
+// With header validation
+const RequestHeadersSchema = z.object({
+  authorization: z.string().startsWith("Bearer "),
+  "content-type": z.literal("application/json"),
+});
+
+const ResponseHeadersSchema = z.object({
+  "content-type": z.string().includes("json"),
+  "x-rate-limit-remaining": z.string().transform(Number).pipe(z.number()),
+});
+
+const response = await safeFetch("/api/users", {
+  headers: {
+    Authorization: "Bearer token123",
+    "Content-Type": "application/json",
+  },
+  requestHeadersSchema: RequestHeadersSchema,
+  responseHeadersSchema: ResponseHeadersSchema,
+});
+
+// Get typed and validated headers
+const headers = response.getValidatedHeaders();
+console.log(`Rate limit remaining: ${headers["x-rate-limit-remaining"]}`);
 ```
 
 ## API
@@ -96,10 +120,12 @@ Main client class. Pass a validation adapter for your schema library.
 
 ### `PraptiOptions`
 
-Standard fetch options plus:
+Extended fetch options with validation schemas:
 
-- `requestSchema?` - Schema to validate request body
-- `responseSchema?` - Schema to validate response data
+- `requestSchema` - Schema to validate request body
+- `responseSchema` - Schema to validate response data
+- `requestHeadersSchema` - Schema to validate request headers
+- `responseHeadersSchema` - Schema to validate response headers
 
 ### `ValidatedResponse`
 
@@ -110,6 +136,7 @@ Enhanced Response with validation:
 - `blob()` - Get blob (no validation)
 - `arrayBuffer()` - Get buffer (no validation)
 - `formData()` - Parse and validate form data
+- `getValidatedHeaders()` - Get validated headers as typed object
 
 ## Custom Adapters
 
@@ -141,9 +168,7 @@ try {
 
 - 🔄 **Built-in adapters for Valibot, Yup, Joi, AJV**
 - 🎨 **Custom adapter utilities and helpers**
-- 🛡️ **Enhanced error types with validation details**
 - 🎯 **Header validation with schemas**
-- ⚡ **Zero-config TypeScript integration**
 - 📦 **FormData and URLSearchParams validation**
 - 🔄 **Streaming response validation**
 
