@@ -3,6 +3,10 @@
  * "प्राप्ति" (Prapti) - Sanskrit for "fetch" or "obtain"
  */
 
+// =========================================================
+// TYPES AND INTERFACES
+// =========================================================
+
 /**
  * Validation adapter interface for different schema libraries
  * Supports Zod, Valibot, Yup, Joi, and other validation libraries
@@ -53,6 +57,10 @@ interface PraptiOptions<
   /** Schema to validate response headers against */
   responseHeadersSchema?: TResponseHeadersSchema;
 }
+
+// =========================================================
+// VALIDATED RESPONSE CLASS
+// =========================================================
 
 /**
  * Enhanced Response class with validation-aware methods
@@ -112,6 +120,10 @@ class ValidatedResponse<T = unknown, THeadersSchema = any> extends Response {
       : (headersObj as unknown as T);
   }
 
+  // -------------------------
+  // Response parsing methods
+  // -------------------------
+
   /**
    * Parse JSON response and validate with schema if provided
    * @returns Promise resolving to validated JSON data
@@ -167,6 +179,10 @@ class ValidatedResponse<T = unknown, THeadersSchema = any> extends Response {
     return data;
   }
 }
+
+// =========================================================
+// MAIN CLIENT IMPLEMENTATION
+// =========================================================
 
 /**
  * Type-safe HTTP client with validation capabilities
@@ -308,6 +324,10 @@ class Prapti<TSchema = unknown> {
   }
 }
 
+// =========================================================
+// FACTORY FUNCTION AND PRE-BUILT ADAPTERS
+// =========================================================
+
 /**
  * Convenience function to create Prapti instance
  * @param adapter - Validation adapter
@@ -320,20 +340,26 @@ function createPrapti<TSchema>(
 }
 
 /**
- * Pre-built adapters for some popular validation libraries
- * TODO: add more
+ * Pre-built adapters for popular validation libraries
  */
 const adapters = {
   /**
-   * Zod adapter factory
-   * @param zod - Zod library import
+   * Zod adapter
    * @returns ValidationAdapter for Zod schemas
    */
   zod: {
     parse: <T>(schema: any, data: unknown): T => schema.parse(data),
   } as ValidationAdapter,
+
+  // TODO: Add more adapters for other validation libraries
 };
 
-// Export core types and classes
+// =========================================================
+// EXPORTS
+// =========================================================
+
+// Export core classes and functions
 export { adapters, Prapti, createPrapti, ValidatedResponse };
+
+// Export types and interfaces
 export type { InferOutput, PraptiOptions, ValidationAdapter };
