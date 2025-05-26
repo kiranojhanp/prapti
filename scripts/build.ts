@@ -12,13 +12,13 @@ await Promise.all([
     ...defaultBuildConfig,
     plugins: [dts()],
     format: "esm",
-    naming: "[dir]/[name].js",
+    naming: "[dir]/[name].esm.js",
   }),
 
   Bun.build({
     ...defaultBuildConfig,
     format: "cjs",
-    naming: "[dir]/[name].cjs",
+    naming: "[dir]/[name].cjs.js",
   }),
 ]);
 const timeEnd = performance.now();
