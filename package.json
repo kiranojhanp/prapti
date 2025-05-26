@@ -1,6 +1,6 @@
 {
   "name": "prapti",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Type-safe HTTP client with runtime schema validation support for Zod, Valibot, Yup, and more",
   "files": [
     "dist/*",
@@ -19,7 +19,7 @@
   },
   "scripts": {
     "build": "bun run scripts/build.ts",
-    "release": "npx bumpp --commit --push --tag",
+    "release": "npx bumpp --commit --push --tag && npm publish",
     "size": "size-limit"
   },
   "repository": {
