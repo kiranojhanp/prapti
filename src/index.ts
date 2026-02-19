@@ -13,26 +13,40 @@
  */
 interface ValidationAdapter<TSchema = unknown> {
   /**
-   * Parse and validate data against the provided schema
+   * Parse and validate data against the provided schema.
+   * Returns `unknown`; callers derive the output type via `InferOutput<TSchema>`.
    * @param schema - The validation schema
    * @param data - Data to validate
-   * @returns Validated and typed data
+   * @returns Validated data (untyped — use InferOutput<TSchema> at call sites)
    * @throws Validation error if data doesn't match schema
    */
-  parse<T>(schema: TSchema, data: unknown): T;
+  parse(schema: TSchema, data: unknown): unknown;
 }
 
 /**
- * Type helper to infer output type from various schema formats
- * Supports multiple validation library conventions
+ * Type helper to infer output type from various schema formats.
+ *
+ * Convention coverage:
+ *  - Zod:     schema._output
+ *  - Yup:     schema.__outputType (via InferType)
+ *  - Valibot: schema["~standard"].types.output  (Standard Schema spec)
+ *  - Fallback: unknown
  */
-type InferOutput<T> = T extends { _output: infer U }
-  ? U // Zod schema format
-  : T extends { _type: infer U }
-  ? U // Valibot schema format
-  : T extends (...args: any[]) => infer U
-  ? U // Function-based schemas
-  : unknown; // Fallback for unsupported formats
+type InferOutput<T> =
+  // Zod: ZodType exposes _output
+  T extends { _output: infer U }
+    ? U
+    // Yup: ObjectSchema exposes __outputType
+    : T extends { __outputType: infer U }
+    ? U
+    // Standard Schema spec (Valibot ≥ 0.31, ArkType, others)
+    : T extends { readonly "~standard": { readonly types?: { readonly output?: infer U } } }
+    ? U
+    // Function-based schemas
+    : T extends (...args: any[]) => infer U
+    ? U
+    // Fallback
+    : unknown;
 
 /**
  * Extended fetch options with optional validation schemas
@@ -44,8 +58,8 @@ interface PraptiOptions<
   TRequestHeadersSchema = unknown,
   TResponseHeadersSchema = unknown
 > extends Omit<RequestInit, "body" | "headers"> {
-  /** Request body - can be any serializable data when using requestSchema */
-  body?: BodyInit | null | unknown;
+  /** Request body — accepts native BodyInit types or a plain object/array (requires requestSchema to serialize) */
+  body?: BodyInit | null | Record<string, unknown> | unknown[];
   /** Request headers - can be HeadersInit or plain object when using requestHeadersSchema */
   headers?: HeadersInit | Record<string, unknown>;
   /** Schema to validate request body against */
@@ -67,6 +81,8 @@ interface PraptiOptions<
  * Extends native Response to provide type-safe data parsing
  */
 class ValidatedResponse<T = unknown, THeadersSchema = any> extends Response {
+  private validatedHeadersCache: any = undefined;
+
   constructor(
     response: Response,
     private adapter: ValidationAdapter<any>,
@@ -96,7 +112,8 @@ class ValidatedResponse<T = unknown, THeadersSchema = any> extends Response {
     });
 
     // Validate headers - this will throw if validation fails
-    this.adapter.parse(this.responseHeadersSchema, headersObj);
+    // Store result in cache
+    this.validatedHeadersCache = this.adapter.parse(this.responseHeadersSchema, headersObj);
   }
 
   /**
@@ -104,20 +121,29 @@ class ValidatedResponse<T = unknown, THeadersSchema = any> extends Response {
    * @returns Validated headers object if schema provided, otherwise plain object
    */
   getValidatedHeaders<
-    T = THeadersSchema extends { _output: infer U }
-      ? U
-      : THeadersSchema extends { _type: infer U }
-      ? U
-      : Record<string, string>
+    T = THeadersSchema extends infer S ? InferOutput<S> : Record<string, string>
   >(): T {
+    if (this.responseHeadersSchema) {
+      // Return cached result if available (should be populated in constructor)
+      if (this.validatedHeadersCache !== undefined) {
+        return this.validatedHeadersCache as T;
+      }
+
+      // Fallback: re-validate if somehow cache is empty but schema exists
+      const headersObj: Record<string, string> = {};
+      this.headers.forEach((value, key) => {
+        headersObj[key.toLowerCase()] = value;
+      });
+      this.validatedHeadersCache = this.adapter.parse(this.responseHeadersSchema, headersObj);
+      return this.validatedHeadersCache as T;
+    }
+
     const headersObj: Record<string, string> = {};
     this.headers.forEach((value, key) => {
       headersObj[key.toLowerCase()] = value;
     });
 
-    return this.responseHeadersSchema
-      ? this.adapter.parse<T>(this.responseHeadersSchema, headersObj)
-      : (headersObj as unknown as T);
+    return headersObj as unknown as T;
   }
 
   // -------------------------
@@ -130,20 +156,20 @@ class ValidatedResponse<T = unknown, THeadersSchema = any> extends Response {
    */
   async json(): Promise<T> {
     const data = await super.json();
-    return this.responseSchema
-      ? this.adapter.parse<T>(this.responseSchema, data)
-      : (data as T);
+    return (
+      this.responseSchema
+        ? this.adapter.parse(this.responseSchema, data)
+        : data
+    ) as T;
   }
 
   /**
-   * Parse text response and validate with schema if provided
-   * @returns Promise resolving to validated text data
+   * Get raw text response - no schema validation applied.
+   * Text is a raw byte representation; use json() for structured validation.
+   * @returns Promise resolving to the raw response text
    */
   async text(): Promise<string> {
-    const data = await super.text();
-    return this.responseSchema
-      ? this.adapter.parse<string>(this.responseSchema, data)
-      : data;
+    return super.text();
   }
 
   /**
@@ -203,6 +229,13 @@ class ValidatedResponse<T = unknown, THeadersSchema = any> extends Response {
           }
         );
         return validatedFormData;
+      } else {
+        // Fix: If schema returns non-object (e.g. primitive), we can't represent it as FormData.
+        // It's likely a schema mismatch or transformation to non-FormData structure.
+        // Throwing error is safer than returning unvalidated original data.
+        throw new Error(
+          "Schema validation result is not an object, cannot be converted to FormData"
+        );
       }
     }
 
@@ -250,6 +283,11 @@ class ValidatedResponse<T = unknown, THeadersSchema = any> extends Response {
           }
         );
         return validatedParams;
+      } else {
+        // Fix: Same as formData, must return object to be representable
+        throw new Error(
+          "Schema validation result is not an object, cannot be converted to URLSearchParams"
+        );
       }
     }
 
@@ -385,7 +423,7 @@ class Prapti<TSchema = unknown> {
     let finalBody: BodyInit | null | undefined;
     let finalHeaders = new Headers();
 
-    // Process and validate request headers
+    // Process headers if provided
     if (headers) {
       const headersObj = this.headersToObject(headers);
 
@@ -395,6 +433,13 @@ class Prapti<TSchema = unknown> {
           requestHeadersSchema,
           headersObj
         );
+        
+        // Add all original headers first
+        Object.entries(headersObj).forEach(([key, value]) => {
+          finalHeaders.set(key, value);
+        });
+
+        // Override with validated headers
         if (validatedHeaders && typeof validatedHeaders === "object") {
           Object.entries(validatedHeaders as Record<string, unknown>).forEach(
             ([key, value]) => {
@@ -403,78 +448,97 @@ class Prapti<TSchema = unknown> {
           );
         }
       } else {
-        // Use headers as-is
+        // Use headers as-is if no schema
         Object.entries(headersObj).forEach(([key, value]) => {
           finalHeaders.set(key, value);
         });
       }
     }
 
-    // Validate and process request body if schema provided
-    if (requestSchema && body !== undefined && body !== null) {
-      let parsedBody: unknown;
+    // Process and validate request body
+    if (body !== undefined && body !== null) {
+      if (requestSchema) {
+        let parsedBody: unknown;
 
-      // Handle different body types for validation
-      if (typeof body === "string") {
-        try {
-          parsedBody = JSON.parse(body);
-        } catch {
+        // Handle different body types for validation
+        if (typeof body === "string") {
+          try {
+            parsedBody = JSON.parse(body);
+          } catch {
+            parsedBody = body;
+          }
+        } else if (body instanceof FormData) {
+          parsedBody = this.formDataToObject(body);
+        } else if (body instanceof URLSearchParams) {
+          parsedBody = this.urlSearchParamsToObject(body);
+        } else {
           parsedBody = body;
         }
-      } else if (body instanceof FormData) {
-        parsedBody = this.formDataToObject(body);
-      } else if (body instanceof URLSearchParams) {
-        parsedBody = this.urlSearchParamsToObject(body);
-      } else {
-        parsedBody = body;
-      }
 
-      // Validate request data against schema
-      const validatedData = this.adapter.parse(requestSchema, parsedBody);
+        // Validate request data against schema
+        const validatedData = this.adapter.parse(requestSchema, parsedBody);
 
-      // Process the validated data based on original body type
-      if (body instanceof FormData) {
-        // Create new FormData with validated data
-        const validatedFormData = new FormData();
-        Object.entries(validatedData as Record<string, unknown>).forEach(
-          ([key, value]) => {
-            if (Array.isArray(value)) {
-              value.forEach((item) =>
-                validatedFormData.append(key, item as string | Blob)
-              );
-            } else {
-              validatedFormData.append(key, value as string | Blob);
+        // Process the validated data based on original body type
+        if (body instanceof FormData) {
+          // Create new FormData with validated data
+          const validatedFormData = new FormData();
+          Object.entries(validatedData as Record<string, unknown>).forEach(
+            ([key, value]) => {
+              if (Array.isArray(value)) {
+                value.forEach((item) =>
+                  validatedFormData.append(key, item as string | Blob)
+                );
+              } else {
+                validatedFormData.append(key, value as string | Blob);
+              }
             }
-          }
-        );
-        finalBody = validatedFormData;
-      } else if (body instanceof URLSearchParams) {
-        // Create new URLSearchParams with validated data
-        const validatedParams = new URLSearchParams();
-        Object.entries(validatedData as Record<string, unknown>).forEach(
-          ([key, value]) => {
-            if (Array.isArray(value)) {
-              value.forEach((item) =>
-                validatedParams.append(key, String(item))
-              );
-            } else {
-              validatedParams.append(key, String(value));
+          );
+          finalBody = validatedFormData;
+        } else if (body instanceof URLSearchParams) {
+          // Create new URLSearchParams with validated data
+          const validatedParams = new URLSearchParams();
+          Object.entries(validatedData as Record<string, unknown>).forEach(
+            ([key, value]) => {
+              if (Array.isArray(value)) {
+                value.forEach((item) =>
+                  validatedParams.append(key, String(item))
+                );
+              } else {
+                validatedParams.append(key, String(value));
+              }
             }
-          }
-        );
-        finalBody = validatedParams;
-      } else {
-        // For JSON and other formats
-        finalBody = JSON.stringify(validatedData);
+          );
+          finalBody = validatedParams;
+        } else {
+          // For JSON and other formats
+          finalBody = JSON.stringify(validatedData);
 
-        // Set content type if not already specified
-        if (!finalHeaders.has("Content-Type")) {
-          finalHeaders.set("Content-Type", "application/json");
+          // Set content type if not already specified
+          if (!finalHeaders.has("Content-Type")) {
+            finalHeaders.set("Content-Type", "application/json");
+          }
+        }
+      } else {
+        // No request schema - use body as-is but handle plain objects
+        if (
+          typeof body === "object" &&
+          body !== null &&
+          !(body instanceof FormData) &&
+          !(body instanceof URLSearchParams) &&
+          !(body instanceof Blob) &&
+          !(body instanceof ArrayBuffer) &&
+          !ArrayBuffer.isView(body) &&
+          !(body instanceof ReadableStream)
+        ) {
+          // It's a plain object, stringify it
+          finalBody = JSON.stringify(body);
+          if (!finalHeaders.has("Content-Type")) {
+            finalHeaders.set("Content-Type", "application/json");
+          }
+        } else {
+          finalBody = body as BodyInit;
         }
       }
-    } else {
-      // Use body as-is when no validation needed
-      finalBody = body as BodyInit | null | undefined;
     }
 
     // Make the actual fetch request
@@ -507,19 +571,77 @@ function createPrapti<TSchema>(
   return new Prapti(adapter);
 }
 
+// ---- Zod types (peer dependency, import type only) ----
+type ZodSchema<O = unknown> = { parse: (data: unknown) => O; _output: O };
+
+// ---- Yup types (peer dependency, import type only) ----
+type YupSchema<O = unknown> = {
+  validateSync: (data: unknown, options?: object) => O;
+  __outputType: O;
+};
+
+// ---- Valibot types (peer dependency, import type only) ----
+// Standard Schema spec (https://github.com/standard-schema/standard-schema)
+// validate() may return sync or async result — both must be supported.
+type ValibotResult<O> = { value: O } | { issues: ArrayLike<unknown> };
+type ValibotSchema<O = unknown> = {
+  readonly "~standard": {
+    readonly version: 1;
+    readonly vendor: "valibot";
+    readonly validate: (value: unknown) => ValibotResult<O> | Promise<ValibotResult<O>>;
+    readonly types?: { readonly input?: unknown; readonly output?: O };
+  };
+};
+
 /**
- * Pre-built adapters for popular validation libraries
+ * Pre-built adapters for popular validation libraries.
+ * Each adapter is fully type-safe: the schema parameter carries the output
+ * type so callers get correct inference without any `any` escapes.
  */
 const adapters = {
   /**
-   * Zod adapter
-   * @returns ValidationAdapter for Zod schemas
+   * Adapter for Zod (https://zod.dev).
+   * Usage: createPrapti(adapters.zod)
    */
   zod: {
-    parse: <T>(schema: any, data: unknown): T => schema.parse(data),
-  } as ValidationAdapter,
+    parse: <O>(schema: ZodSchema<O>, data: unknown): O => schema.parse(data),
+  } satisfies ValidationAdapter<ZodSchema>,
 
-  // TODO: Add more adapters for other validation libraries
+  /**
+   * Adapter for Yup (https://github.com/jquense/yup).
+   * Usage: createPrapti(adapters.yup)
+   */
+  yup: {
+    parse: <O>(schema: YupSchema<O>, data: unknown): O =>
+      schema.validateSync(data, { abortEarly: false }),
+  } satisfies ValidationAdapter<YupSchema>,
+
+  /**
+   * Adapter for Valibot (https://valibot.dev).
+   * Valibot's API is functional: v.parse(schema, data) — not schema.parse(data).
+   * This adapter bridges that correctly.
+   * Usage: createPrapti(adapters.valibot)
+   */
+  valibot: {
+    parse: <O>(schema: ValibotSchema<O>, data: unknown): O => {
+      // Valibot's Standard Schema interface: call ~standard.validate
+      const result = schema["~standard"].validate(data);
+      // validate() can return Promise for async schemas — prapti does not support async validation
+      if (result instanceof Promise) {
+        throw new Error(
+          "Valibot async schemas are not supported. Use synchronous schemas (v.string(), v.object(), etc.) without async actions."
+        );
+      }
+      // Sync result: { value } on success or { issues } on failure
+      if ("issues" in result) {
+        const msg = Array.from(result.issues as ArrayLike<{ message?: string }>)
+          .map((i) => i?.message ?? "Unknown issue")
+          .join("; ");
+        throw new Error(`Valibot validation failed: ${msg}`);
+      }
+      return result.value;
+    },
+  } satisfies ValidationAdapter<ValibotSchema>,
 };
 
 // =========================================================
