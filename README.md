@@ -106,6 +106,32 @@ const headers = response.validatedHeaders;
 console.log(`Rate limit remaining: ${headers["x-rate-limit-remaining"]}`);
 ```
 
+Notes:
+- When `validate.request.headers` is provided, Prapti sends only validated headers.
+- Include `content-type` in your header schema if you want it sent; otherwise it is dropped.
+
+</details>
+
+<details>
+<summary>Serialization</summary>
+
+By default, Prapti uses `JSON.stringify` and `JSON.parse` for JSON payloads. You can supply a custom serializer per instance:
+
+```typescript
+import superjson from "superjson";
+
+const { fetch } = prapti(zodAdapter, {
+  serializer: {
+    stringify: (value) => superjson.stringify(value),
+    parse: (value) => superjson.parse(value),
+    isJsonContentType: (contentType) =>
+      contentType?.toLowerCase().includes("application/json") ?? false,
+  },
+});
+```
+
+`ValidatedResponse.json()` uses the same serializer for response parsing.
+
 </details>
 
 ## Adapters
@@ -138,12 +164,17 @@ const { fetch } = prapti(customAdapter);
 ## API
 
 <details>
-<summary><code>prapti(adapter)</code></summary>
+<summary><code>prapti(adapter, config?)</code></summary>
 
 Factory function. Pass a validation adapter and get back an enhanced `fetch`.
 
 ```typescript
-const { fetch } = prapti(zodAdapter);
+const { fetch } = prapti(zodAdapter, {
+  serializer: {
+    stringify: JSON.stringify,
+    parse: JSON.parse,
+  },
+});
 ```
 
 </details>

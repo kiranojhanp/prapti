@@ -9,7 +9,9 @@ export { ValidatedResponse } from "./response";
 export { Prapti, prapti } from "./prapti";
 export type {
   InferOutput,
+  PraptiConfig,
   PraptiOptions,
+  SerializationAdapter,
   ValidateOptions,
   ValidationAdapter,
 } from "./types";

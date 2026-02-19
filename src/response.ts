@@ -1,4 +1,9 @@
-import type { ValidationAdapter, InferOutput } from "./types";
+import type { ValidationAdapter, InferOutput, SerializationAdapter } from "./types";
+
+const defaultSerializer: SerializationAdapter = {
+  stringify: (value: unknown) => JSON.stringify(value),
+  parse: (value: string) => JSON.parse(value),
+};
 
 /**
  * Enhanced Response class with validation-aware methods
@@ -11,7 +16,8 @@ export class ValidatedResponse<T = unknown, THeadersSchema = any> extends Respon
     response: Response,
     private adapter: ValidationAdapter<any>,
     private responseSchema?: any,
-    private responseHeadersSchema?: THeadersSchema
+    private responseHeadersSchema?: THeadersSchema,
+    private serializer: SerializationAdapter = defaultSerializer
   ) {
     super(response.body, response);
     Object.setPrototypeOf(this, ValidatedResponse.prototype);
@@ -80,7 +86,8 @@ export class ValidatedResponse<T = unknown, THeadersSchema = any> extends Respon
    * @returns Promise resolving to validated JSON data
    */
   async json(): Promise<T> {
-    const data = await super.json();
+    const text = await super.text();
+    const data = this.serializer.parse(text);
     return (
       this.responseSchema
         ? this.adapter.parse(this.responseSchema, data)

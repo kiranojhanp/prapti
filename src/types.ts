@@ -15,6 +15,25 @@ export interface ValidationAdapter<TSchema = unknown> {
 }
 
 /**
+ * Serialization adapter for transforming request/response payloads.
+ */
+export interface SerializationAdapter {
+  /** Serialize a payload into a transport-friendly form. */
+  stringify(value: unknown): string;
+  /** Deserialize a payload from the transport format. */
+  parse(value: string): unknown;
+  /** Optional content-type check for JSON payloads. */
+  isJsonContentType?: (contentType: string | null) => boolean;
+}
+
+/**
+ * Optional configuration for serialization and header validation.
+ */
+export interface PraptiConfig {
+  serializer?: SerializationAdapter;
+}
+
+/**
  * Type helper to infer output type from various schema formats.
  *
  * Convention coverage:

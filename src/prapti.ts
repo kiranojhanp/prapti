@@ -1,16 +1,46 @@
-import type { ValidationAdapter, InferOutput, PraptiOptions } from "./types";
+import type {
+  InferOutput,
+  PraptiConfig,
+  PraptiOptions,
+  SerializationAdapter,
+  ValidationAdapter,
+} from "./types";
 import { ValidatedResponse } from "./response";
+
+const defaultSerializer: SerializationAdapter = {
+  stringify: (value: unknown) => JSON.stringify(value),
+  parse: (value: string) => JSON.parse(value),
+  isJsonContentType: (contentType: string | null) => {
+    if (!contentType) return false;
+    const normalized = contentType.toLowerCase();
+    const mediaType = normalized.split(";")[0] ?? "";
+    const trimmedMediaType = mediaType.trim();
+    return (
+      trimmedMediaType === "application/json" ||
+      (trimmedMediaType.startsWith("application/") &&
+        trimmedMediaType.endsWith("+json"))
+    );
+  },
+};
 
 /**
  * Type-safe HTTP client with validation capabilities
  * Wraps native fetch API with schema validation support
  */
 export class Prapti<TSchema = unknown> {
+  private serializer: SerializationAdapter;
+
   /**
    * Create a new Prapti instance
    * @param adapter - Validation adapter for chosen schema library
+   * @param config - Optional serializer and header validation config
    */
-  constructor(private adapter: ValidationAdapter<TSchema>) {}
+  constructor(
+    private adapter: ValidationAdapter<TSchema>,
+    config: PraptiConfig = {}
+  ) {
+    this.serializer = config.serializer ?? defaultSerializer;
+  }
 
   /**
    * Convert Headers object or HeadersInit to plain object
@@ -89,6 +119,12 @@ export class Prapti<TSchema = unknown> {
     return result;
   }
 
+  private isJsonContentType(contentType: string | null): boolean {
+    return this.serializer.isJsonContentType
+      ? this.serializer.isJsonContentType(contentType)
+      : defaultSerializer.isJsonContentType?.(contentType) ?? false;
+  }
+
   /**
    * Make an HTTP request with optional request/response validation
    * @param input - Request URL or Request object
@@ -126,49 +162,57 @@ export class Prapti<TSchema = unknown> {
 
     let finalBody: BodyInit | null | undefined;
     let finalHeaders = new Headers();
+    const rawHeaders = this.headersToObject(headers);
 
-    // Process headers if provided
-    if (headers) {
-      const headersObj = this.headersToObject(headers);
+    // Validate request headers if schema provided
+    if (requestHeadersSchema) {
+      const validatedHeaders = this.adapter.parse(
+        requestHeadersSchema,
+        rawHeaders
+      );
 
-      // Validate request headers if schema provided
-      if (requestHeadersSchema) {
-        const validatedHeaders = this.adapter.parse(
-          requestHeadersSchema,
-          headersObj
-        );
-
-        // Add all original headers first
-        Object.entries(headersObj).forEach(([key, value]) => {
-          finalHeaders.set(key, value);
-        });
-
-        // Override with validated headers
-        if (validatedHeaders && typeof validatedHeaders === "object") {
-          Object.entries(validatedHeaders as Record<string, unknown>).forEach(
-            ([key, value]) => {
-              finalHeaders.set(key, String(value));
+      if (validatedHeaders && typeof validatedHeaders === "object") {
+        Object.entries(validatedHeaders as Record<string, unknown>).forEach(
+          ([key, value]) => {
+            if (value === undefined || value === null) {
+              return;
             }
-          );
-        }
-      } else {
-        // Use headers as-is if no schema
-        Object.entries(headersObj).forEach(([key, value]) => {
-          finalHeaders.set(key, value);
-        });
+            finalHeaders.set(key, String(value));
+          }
+        );
       }
+    } else {
+      // Use headers as-is if no schema
+      Object.entries(rawHeaders).forEach(([key, value]) => {
+        finalHeaders.set(key, value);
+      });
     }
 
     // Process and validate request body
     if (body !== undefined && body !== null) {
       if (requestBodySchema) {
         let parsedBody: unknown;
+        const validatedContentType = finalHeaders.get("content-type");
+        const contentType = validatedContentType;
 
         // Handle different body types for validation
         if (typeof body === "string") {
-          try {
-            parsedBody = JSON.parse(body);
-          } catch {
+          const isJson = this.isJsonContentType(contentType);
+          if (isJson) {
+            try {
+              parsedBody = this.serializer.parse(body);
+            } catch (error) {
+              const errorMessage =
+                error instanceof Error ? error.message : String(error);
+              throw new Error(`Invalid JSON request body: ${errorMessage}`);
+            }
+          } else if (contentType === null) {
+            try {
+              parsedBody = this.serializer.parse(body);
+            } catch {
+              parsedBody = body;
+            }
+          } else {
             parsedBody = body;
           }
         } else if (body instanceof FormData) {
@@ -214,11 +258,21 @@ export class Prapti<TSchema = unknown> {
           );
           finalBody = validatedParams;
         } else {
-          // For JSON and other formats
-          finalBody = JSON.stringify(validatedData);
+          if (typeof validatedData === "string") {
+            const isJson = this.isJsonContentType(contentType);
+            const shouldSerializeString = contentType === null || isJson;
+            if (shouldSerializeString) {
+              finalBody = this.serializer.stringify(validatedData);
+            } else {
+              finalBody = validatedData;
+            }
+          } else {
+            finalBody = this.serializer.stringify(validatedData);
+          }
 
           // Set content type if not already specified
-          if (!finalHeaders.has("Content-Type")) {
+          const canAutoSetContentType = !requestHeadersSchema;
+          if (canAutoSetContentType && !finalHeaders.has("Content-Type")) {
             finalHeaders.set("Content-Type", "application/json");
           }
         }
@@ -235,7 +289,7 @@ export class Prapti<TSchema = unknown> {
           !(body instanceof ReadableStream)
         ) {
           // It's a plain object, stringify it
-          finalBody = JSON.stringify(body);
+          finalBody = this.serializer.stringify(body);
           if (!finalHeaders.has("Content-Type")) {
             finalHeaders.set("Content-Type", "application/json");
           }
@@ -256,7 +310,13 @@ export class Prapti<TSchema = unknown> {
     return new ValidatedResponse<
       TResponseSchema extends never ? unknown : InferOutput<TResponseSchema>,
       TResponseHeadersSchema
-    >(response, this.adapter, responseBodySchema, responseHeadersSchema);
+    >(
+      response,
+      this.adapter,
+      responseBodySchema,
+      responseHeadersSchema,
+      this.serializer
+    );
   }
 }
 
@@ -266,7 +326,8 @@ export class Prapti<TSchema = unknown> {
  * @returns New Prapti instance
  */
 export function prapti<TSchema>(
-  adapter: ValidationAdapter<TSchema>
+  adapter: ValidationAdapter<TSchema>,
+  config?: PraptiConfig
 ): Prapti<TSchema> {
-  return new Prapti(adapter);
+  return new Prapti(adapter, config);
 }

@@ -73,4 +73,35 @@ describe("ValidatedResponse Fixes", () => {
     // It should convert number 123 back to string "123" when creating FormData
     expect(result.get("age")).toBe("123");
   });
+
+  test("json should use provided serializer.parse", async () => {
+    let parseCount = 0;
+    const serializer = {
+      stringify: (value: unknown) => JSON.stringify(value),
+      parse: (value: string) => {
+        parseCount++;
+        return { parsed: value };
+      },
+    };
+
+    const passthroughAdapter = {
+      parse: (_schema: unknown, data: unknown) => data,
+    };
+
+    const response = new Response("not-json");
+    const ValidatedResponseAny =
+      ValidatedResponse as unknown as new (...args: any[]) => ValidatedResponse;
+    const validatedResponse = new ValidatedResponseAny(
+      response,
+      passthroughAdapter,
+      undefined,
+      undefined,
+      serializer
+    );
+
+    const result = await validatedResponse.json();
+
+    expect(result).toEqual({ parsed: "not-json" });
+    expect(parseCount).toBe(1);
+  });
 });
