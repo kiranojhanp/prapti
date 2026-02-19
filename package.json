@@ -65,12 +65,12 @@
     "@size-limit/preset-small-lib": "^11.2.0",
     "@types/bun": "latest",
     "bun-plugin-dts": "0.3.0",
-    "size-limit": "^11.2.0",
-    "valibot": "^1.2.0",
-    "yup": "^1.7.1"
+    "size-limit": "^11.2.0"
   },
   "peerDependencies": {
     "typescript": "^5",
+    "valibot": "^1.2.0",
+    "yup": "^1.7.1",
     "zod": "^3.25.28"
   },
   "size-limit": [
