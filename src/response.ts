@@ -41,25 +41,26 @@ export class ValidatedResponse<T = unknown, THeadersSchema = any> extends Respon
   }
 
   /**
-   * Get validated headers as typed object
-   * @returns Validated headers object if schema provided, otherwise plain object
+   * Get validated headers as a typed object.
+   * Returns the schema-validated result if a response headers schema was provided,
+   * otherwise returns a plain lowercase-keyed object of all response headers.
    */
-  getValidatedHeaders<
-    T = THeadersSchema extends infer S ? InferOutput<S> : Record<string, string>
-  >(): T {
+  get validatedHeaders(): THeadersSchema extends infer S ? InferOutput<S> : Record<string, string> {
+    type R = THeadersSchema extends infer S ? InferOutput<S> : Record<string, string>;
+
     if (this.responseHeadersSchema) {
-      // Return cached result if available (should be populated in constructor)
+      // Return cached result if available (populated eagerly in constructor)
       if (this.validatedHeadersCache !== undefined) {
-        return this.validatedHeadersCache as T;
+        return this.validatedHeadersCache as R;
       }
 
-      // Fallback: re-validate if somehow cache is empty but schema exists
+      // Fallback: re-validate if cache is somehow empty
       const headersObj: Record<string, string> = {};
       this.headers.forEach((value, key) => {
         headersObj[key.toLowerCase()] = value;
       });
       this.validatedHeadersCache = this.adapter.parse(this.responseHeadersSchema, headersObj);
-      return this.validatedHeadersCache as T;
+      return this.validatedHeadersCache as R;
     }
 
     const headersObj: Record<string, string> = {};
@@ -67,7 +68,7 @@ export class ValidatedResponse<T = unknown, THeadersSchema = any> extends Respon
       headersObj[key.toLowerCase()] = value;
     });
 
-    return headersObj as unknown as T;
+    return headersObj as unknown as R;
   }
 
   // -------------------------

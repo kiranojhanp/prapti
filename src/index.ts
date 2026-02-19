@@ -5,5 +5,5 @@
 
 export { adapters } from "./adapters";
 export { ValidatedResponse } from "./response";
-export { Prapti, createPrapti } from "./prapti";
-export type { InferOutput, PraptiOptions, ValidationAdapter } from "./types";
+export { Prapti, prapti } from "./prapti";
+export type { InferOutput, PraptiOptions, ValidateOptions, ValidationAdapter } from "./types";

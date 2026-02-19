@@ -40,25 +40,50 @@ export type InferOutput<T> =
     : unknown;
 
 /**
- * Extended fetch options with optional validation schemas
+ * Nested validation schema options grouped by HTTP direction
+ */
+export interface ValidateOptions<
+  TRequestBodySchema = unknown,
+  TResponseBodySchema = unknown,
+  TRequestHeadersSchema = unknown,
+  TResponseHeadersSchema = unknown
+> {
+  /** Schemas applied to the outgoing request */
+  request?: {
+    /** Schema to validate request body against */
+    body?: TRequestBodySchema;
+    /** Schema to validate request headers against */
+    headers?: TRequestHeadersSchema;
+  };
+  /** Schemas applied to the incoming response */
+  response?: {
+    /** Schema to validate response body against */
+    body?: TResponseBodySchema;
+    /** Schema to validate response headers against */
+    headers?: TResponseHeadersSchema;
+  };
+}
+
+/**
+ * Extended fetch options with optional validation schemas.
  * Maintains compatibility with native RequestInit while adding validation
+ * via the `validate` block.
  */
 export interface PraptiOptions<
-  TRequestSchema = unknown,
-  TResponseSchema = unknown,
+  TRequestBodySchema = unknown,
+  TResponseBodySchema = unknown,
   TRequestHeadersSchema = unknown,
   TResponseHeadersSchema = unknown
 > extends Omit<RequestInit, "body" | "headers"> {
-  /** Request body — accepts native BodyInit types or a plain object/array (requires requestSchema to serialize) */
+  /** Request body — accepts native BodyInit types or a plain object/array (auto-JSON-stringified) */
   body?: BodyInit | null | Record<string, unknown> | unknown[];
-  /** Request headers - can be HeadersInit or plain object when using requestHeadersSchema */
+  /** Request headers - can be HeadersInit or plain object */
   headers?: HeadersInit | Record<string, unknown>;
-  /** Schema to validate request body against */
-  requestSchema?: TRequestSchema;
-  /** Schema to validate response data against */
-  responseSchema?: TResponseSchema;
-  /** Schema to validate request headers against */
-  requestHeadersSchema?: TRequestHeadersSchema;
-  /** Schema to validate response headers against */
-  responseHeadersSchema?: TResponseHeadersSchema;
+  /** All schema validation options, grouped by direction */
+  validate?: ValidateOptions<
+    TRequestBodySchema,
+    TResponseBodySchema,
+    TRequestHeadersSchema,
+    TResponseHeadersSchema
+  >;
 }

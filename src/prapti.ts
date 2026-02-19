@@ -113,14 +113,16 @@ export class Prapti<TSchema = unknown> {
     >
   > {
     const {
-      requestSchema,
-      responseSchema,
-      requestHeadersSchema,
-      responseHeadersSchema,
+      validate,
       body,
       headers,
       ...fetchOptions
     } = options || {};
+
+    const requestBodySchema = validate?.request?.body;
+    const requestHeadersSchema = validate?.request?.headers;
+    const responseBodySchema = validate?.response?.body;
+    const responseHeadersSchema = validate?.response?.headers as TResponseHeadersSchema | undefined;
 
     let finalBody: BodyInit | null | undefined;
     let finalHeaders = new Headers();
@@ -159,7 +161,7 @@ export class Prapti<TSchema = unknown> {
 
     // Process and validate request body
     if (body !== undefined && body !== null) {
-      if (requestSchema) {
+      if (requestBodySchema) {
         let parsedBody: unknown;
 
         // Handle different body types for validation
@@ -178,7 +180,7 @@ export class Prapti<TSchema = unknown> {
         }
 
         // Validate request data against schema
-        const validatedData = this.adapter.parse(requestSchema, parsedBody);
+        const validatedData = this.adapter.parse(requestBodySchema, parsedBody);
 
         // Process the validated data based on original body type
         if (body instanceof FormData) {
@@ -254,16 +256,16 @@ export class Prapti<TSchema = unknown> {
     return new ValidatedResponse<
       TResponseSchema extends never ? unknown : InferOutput<TResponseSchema>,
       TResponseHeadersSchema
-    >(response, this.adapter, responseSchema, responseHeadersSchema);
+    >(response, this.adapter, responseBodySchema, responseHeadersSchema);
   }
 }
 
 /**
- * Convenience function to create Prapti instance
+ * Convenience function to create a Prapti instance
  * @param adapter - Validation adapter
  * @returns New Prapti instance
  */
-export function createPrapti<TSchema>(
+export function prapti<TSchema>(
   adapter: ValidationAdapter<TSchema>
 ): Prapti<TSchema> {
   return new Prapti(adapter);
