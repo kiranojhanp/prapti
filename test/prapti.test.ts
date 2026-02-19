@@ -32,7 +32,7 @@ describe("Prapti Class Fixes", () => {
     expect(capturedHeaders?.get("authorization")).toBe("Bearer token");
   });
 
-  test("should drop non-validated headers even if headerValidationMode is provided", async () => {
+  test("should drop non-validated headers when requestHeadersSchema is provided", async () => {
     let capturedHeaders: Headers | undefined;
     
     // @ts-ignore
@@ -45,9 +45,7 @@ describe("Prapti Class Fixes", () => {
       "x-validated": z.string()
     });
 
-    const preservePrapti = new Prapti(zodAdapter, { headerValidationMode: "preserve" } as any);
-
-    await preservePrapti.fetch("https://api.example.com", {
+    await prapti.fetch("https://api.example.com", {
       headers: {
         "x-validated": "valid",
         "x-preserved": "preserved"
@@ -282,9 +280,9 @@ describe("Prapti Class Fixes", () => {
     let capturedHeaders: Headers | undefined;
 
     const serializer: SerializationAdapter = {
-      stringify: (value) => `custom:${JSON.stringify(value)}`,
-      parse: (value) => JSON.parse(value.replace("custom:", "")),
-      isJsonContentType: (contentType) =>
+      stringify: (value: unknown) => `custom:${JSON.stringify(value)}`,
+      parse: (value: string) => JSON.parse(value.replace("custom:", "")),
+      isJsonContentType: (contentType: string | null) =>
         contentType?.includes("application/json") ?? false,
     };
 
