@@ -1,126 +1,208 @@
-# Prapti Restructuring Plan
+# Prapti Restructuring Plan — 2026-02-19
 
-**Date:** 2026-02-19  
-**Goal:** Split the monolithic `src/index.ts` into focused modules, remove dead code, and consolidate test files.
+## Goal
 
----
+Split the monolithic `src/index.ts` (656 lines) into logical, maintainable modules. Remove dead code. Merge `test/fixes/` unit tests into canonical test files.
 
-## Final Structure
-
-### Source
+## Current State
 
 ```
 src/
-├── types.ts          # All exported TypeScript types and interfaces
-├── adapters.ts       # adapters.zod, adapters.yup, adapters.valibot (+ internal schema types)
-├── response.ts       # ValidatedResponse class
-├── prapti.ts         # Prapti class + createPrapti factory
-└── index.ts          # Re-exports only (public API barrel)
-```
+├── index.ts          ← 656-line monolith (types + adapters + ValidatedResponse + Prapti + exports)
+└── adapters/
+    └── valibot.ts    ← DEAD FILE (incorrect valibot API, unused)
 
-### Tests
-
-```
 test/
-├── adapters.test.ts           # (moved from test/fixes/adapters.test.ts)
-├── prapti.test.ts             # (moved from test/fixes/prapti-class.test.ts)
-├── validated-response.test.ts # (moved from test/fixes/validated-response.test.ts)
-├── form-data.test.ts          # (unchanged)
-├── headers.test.ts            # (unchanged)
-└── integration.test.ts        # (renamed from test/index.test.ts)
+├── index.test.ts          ← integration tests (jsonplaceholder)
+├── form-data.test.ts      ← FormData/URLSearchParams integration
+├── headers.test.ts        ← header validation integration
+└── fixes/
+    ├── adapters.test.ts          ← adapter unit tests
+    ├── prapti-class.test.ts      ← Prapti unit tests
+    └── validated-response.test.ts ← ValidatedResponse unit tests
 ```
 
-Remove: `src/adapters/valibot.ts` (dead code — incorrect API usage, superseded by `adapters.ts`)  
-Remove: `test/fixes/` directory (all tests promoted to top-level)
+## Target State
+
+```
+src/
+├── types.ts          ← ValidationAdapter, InferOutput, PraptiOptions
+├── adapters.ts       ← ZodSchema, YupSchema, ValibotSchema types + adapters object
+├── response.ts       ← ValidatedResponse class
+├── prapti.ts         ← Prapti class + createPrapti factory
+└── index.ts          ← public API re-exports only
+
+test/
+├── integration.test.ts      ← (was index.test.ts)
+├── form-data.test.ts        ← unchanged
+├── headers.test.ts          ← unchanged
+├── adapters.test.ts         ← (was fixes/adapters.test.ts)
+├── prapti.test.ts           ← (was fixes/prapti-class.test.ts)
+└── validated-response.test.ts ← (was fixes/validated-response.test.ts)
+```
 
 ---
 
-## Tasks
+## Task 1: Create `src/types.ts`
 
-### Task 1 — Create `src/types.ts`
+**File to create:** `src/types.ts`
 
-Extract all types from `src/index.ts`:
+Extract from `src/index.ts` lines 14–73:
+- `ValidationAdapter<TSchema>` interface
+- `InferOutput<T>` type
+- `PraptiOptions<TReqSchema, TResSchema, TReqHeadersSchema, TResHeadersSchema>` type
 
-- `ValidationAdapter<TSchema>`
-- `InferOutput<T>`
-- `PraptiOptions<TReqSchema, TResSchema, TReqHeadersSchema, TResHeadersSchema>`
+Contents:
 
-No imports from other src files needed. These are pure type declarations.
+```ts
+export type ValidationAdapter<TSchema> = {
+  parse(schema: TSchema, data: unknown): unknown;
+};
 
-### Task 2 — Create `src/adapters.ts`
+export type InferOutput<T> = T extends import("zod").ZodType<infer O>
+  ? O
+  : T extends { __outputType: infer O }
+  ? O
+  : T extends { "~standard": { types?: { output?: infer O } } }
+  ? O
+  : T extends (...args: any[]) => infer O
+  ? O
+  : unknown;
 
-Extract adapter-related code from `src/index.ts`:
+export type PraptiOptions<
+  TReqSchema = unknown,
+  TResSchema = unknown,
+  TReqHeadersSchema = unknown,
+  TResHeadersSchema = unknown,
+> = Omit<RequestInit, "body" | "headers"> & {
+  body?: BodyInit | null | Record<string, unknown> | unknown[];
+  headers?: HeadersInit | Record<string, string>;
+  requestSchema?: TReqSchema;
+  responseSchema?: TResSchema;
+  requestHeadersSchema?: TReqHeadersSchema;
+  responseHeadersSchema?: TResHeadersSchema;
+};
+```
 
-- Internal types: `ZodSchema<O>`, `YupSchema<O>`, `ValibotResult<O>`, `ValibotSchema<O>`
-- Import `ValidationAdapter` from `./types`
-- Export `adapters` object with `.zod`, `.yup`, `.valibot`
+**Steps:**
+1. Create `src/types.ts` with content above (exact types from index.ts)
+2. Run `bun run build` — expect it to still work (types not yet removed from index.ts)
+3. Remove the type definitions from `src/index.ts` and replace with `import { ValidationAdapter, InferOutput, PraptiOptions } from "./types"`
+4. Run `bun run build` again — must succeed
+5. Commit
 
-### Task 3 — Create `src/response.ts`
+---
 
-Extract `ValidatedResponse` class from `src/index.ts`:
+## Task 2: Create `src/adapters.ts`
 
-- Import `ValidationAdapter`, `InferOutput` from `./types`
-- Export `ValidatedResponse`
+**File to create:** `src/adapters.ts`
 
-### Task 4 — Create `src/prapti.ts`
+Extract from `src/index.ts` lines 575–645:
+- `ZodSchema<O>` type
+- `YupSchema<O>` type
+- `ValibotResult<O>` type
+- `ValibotSchema<O>` type
+- `adapters` const object with `.zod`, `.yup`, `.valibot`
 
-Extract `Prapti` class and `createPrapti` from `src/index.ts`:
+Import `ValidationAdapter` from `./types`.
 
-- Import `ValidationAdapter` from `./types`
-- Import `PraptiOptions`, `InferOutput` from `./types`
-- Import `ValidatedResponse` from `./response`
-- Export `Prapti`, `createPrapti`
+**Steps:**
+1. Create `src/adapters.ts` with the adapter types and `adapters` object
+2. Remove adapter code from `src/index.ts`, import from `./adapters`
+3. Run `bun run build` — must succeed
+4. Run `bun test` — all tests must pass
+5. Commit
 
-### Task 5 — Rewrite `src/index.ts` as a barrel
+---
 
-Replace the monolith with clean re-exports:
+## Task 3: Create `src/response.ts`
+
+**File to create:** `src/response.ts`
+
+Extract from `src/index.ts` lines 83–296: the `ValidatedResponse` class.
+
+Import `ValidationAdapter`, `InferOutput` from `./types`.
+
+**Steps:**
+1. Create `src/response.ts` with `ValidatedResponse` class
+2. Remove `ValidatedResponse` from `src/index.ts`, import from `./response`
+3. Run `bun run build` — must succeed
+4. Run `bun test` — all tests must pass
+5. Commit
+
+---
+
+## Task 4: Create `src/prapti.ts`
+
+**File to create:** `src/prapti.ts`
+
+Extract from `src/index.ts` lines 306–572: the `Prapti` class and `createPrapti` factory.
+
+Import `ValidationAdapter`, `InferOutput`, `PraptiOptions` from `./types`.
+Import `ValidatedResponse` from `./response`.
+
+**Steps:**
+1. Create `src/prapti.ts` with `Prapti` class and `createPrapti`
+2. Remove them from `src/index.ts`, import from `./prapti`
+3. Run `bun run build` — must succeed
+4. Run `bun test` — all tests must pass
+5. Commit
+
+---
+
+## Task 5: Slim down `src/index.ts` to re-exports only
+
+After Tasks 1–4, `src/index.ts` should only contain re-exports:
 
 ```ts
 export { adapters } from "./adapters";
-export { ValidatedResponse } from "./response";
 export { Prapti, createPrapti } from "./prapti";
-export type { ValidationAdapter, InferOutput, PraptiOptions } from "./types";
+export { ValidatedResponse } from "./response";
+export type { InferOutput, PraptiOptions, ValidationAdapter } from "./types";
 ```
 
-### Task 6 — Delete dead code
-
-- Delete `src/adapters/valibot.ts`
-- Delete `src/adapters/` directory if empty
-
-### Task 7 — Promote `test/fixes/` tests
-
-- Move `test/fixes/adapters.test.ts` → `test/adapters.test.ts`
-  - Update import: `../../src/index` → `../src/index`
-- Move `test/fixes/prapti-class.test.ts` → `test/prapti.test.ts`
-  - Update import: `../../src/index` → `../src/index`
-- Move `test/fixes/validated-response.test.ts` → `test/validated-response.test.ts`
-  - Update import: `../../src/index` → `../src/index`
-- Delete `test/fixes/` directory
-
-### Task 8 — Rename `test/index.test.ts` → `test/integration.test.ts`
-
-- Update import if any relative paths are affected
-
-### Task 9 — Verify all tests pass
-
-```
-bun test
-```
-
-All tests must pass before considering the restructuring complete.
-
-### Task 10 — Verify build
-
-```
-bun run build
-```
-
-Output: `dist/index.cjs.js`, `dist/index.esm.js`, `dist/index.d.ts` — no errors.
+**Steps:**
+1. Replace `src/index.ts` content with pure re-exports
+2. Run `bun run build` — must succeed
+3. Run `bun test` — all tests must pass
+4. Commit
 
 ---
 
-## Constraints
+## Task 6: Delete dead file `src/adapters/valibot.ts`
 
-- Public API surface must not change (same exports from `src/index.ts`)
-- No logic changes — pure structural move
-- No new dependencies
+The file uses incorrect Valibot API (`valibot.parse(schema, data)`) and is completely unused. The correct adapter is already in `src/adapters.ts`.
+
+**Steps:**
+1. Delete `src/adapters/valibot.ts`
+2. Run `bun run build` — must succeed
+3. Commit
+
+---
+
+## Task 7: Reorganize test files
+
+Move `test/fixes/` unit tests to top-level `test/` and rename `test/index.test.ts`.
+
+Mapping:
+- `test/index.test.ts` → `test/integration.test.ts`
+- `test/fixes/adapters.test.ts` → `test/adapters.test.ts`
+- `test/fixes/prapti-class.test.ts` → `test/prapti.test.ts`
+- `test/fixes/validated-response.test.ts` → `test/validated-response.test.ts`
+
+Update import paths in moved files (remove `../../` prefix, use `../src/index`).
+
+**Steps:**
+1. Copy files to new locations with updated imports
+2. Delete `test/fixes/` directory and `test/index.test.ts`
+3. Run `bun test` — all tests must pass
+4. Commit
+
+---
+
+## Notes
+
+- The public API surface (exports from `src/index.ts`) must not change — no breaking changes
+- Build output targets: `dist/index.cjs.js`, `dist/index.esm.js`, `dist/index.d.ts`
+- Size limit: 5KB each for CJS and ESM
+- All tests must pass after each task
