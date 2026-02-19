@@ -231,11 +231,11 @@ describe("FormData and URLSearchParams validation", () => {
       });
 
       // Validate manually for this test
-      const validatedParams = adapters.zod.parse<{
+      const validatedParams = adapters.zod.parse(QueryParamsSchema, queryObj) as {
         q: string;
         page: number;
         limit?: string;
-      }>(QueryParamsSchema, queryObj);
+      };
 
       // Verify transformation worked
       expect(typeof validatedParams.page).toBe("number");

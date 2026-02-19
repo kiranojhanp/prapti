@@ -15,6 +15,21 @@
       "types": "./dist/index.d.ts",
       "require": "./dist/index.cjs.js",
       "import": "./dist/index.esm.js"
+    },
+    "./adapters/zod": {
+      "types": "./dist/adapters/zod.d.ts",
+      "require": "./dist/adapters/zod.cjs.js",
+      "import": "./dist/adapters/zod.esm.js"
+    },
+    "./adapters/yup": {
+      "types": "./dist/adapters/yup.d.ts",
+      "require": "./dist/adapters/yup.cjs.js",
+      "import": "./dist/adapters/yup.esm.js"
+    },
+    "./adapters/valibot": {
+      "types": "./dist/adapters/valibot.d.ts",
+      "require": "./dist/adapters/valibot.cjs.js",
+      "import": "./dist/adapters/valibot.esm.js"
     }
   },
   "scripts": {

@@ -2,7 +2,12 @@ import type { BuildConfig } from "bun";
 import dts from "bun-plugin-dts";
 
 const defaultBuildConfig: BuildConfig = {
-  entrypoints: ["./src/index.ts"],
+  entrypoints: [
+    "./src/index.ts",
+    "./src/adapters/zod.ts",
+    "./src/adapters/yup.ts",
+    "./src/adapters/valibot.ts",
+  ],
   outdir: "./dist",
   minify: true, // Enable minification
   sourcemap: "none", // Disable source maps for smaller builds
