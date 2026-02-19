@@ -1,12 +1,13 @@
 import { describe, test, expect, beforeAll } from "bun:test";
-import { Prapti, adapters } from "../src/index";
+import { Prapti } from "../src/index";
+import { zodAdapter } from "../src/adapters/zod";
 import { z } from "zod";
 
 describe("Header validation with Zod", () => {
   let prapti: Prapti<z.ZodSchema>;
 
   beforeAll(() => {
-    prapti = new Prapti(adapters.zod);
+    prapti = new Prapti(zodAdapter);
   });
 
   describe("Request header validation", () => {

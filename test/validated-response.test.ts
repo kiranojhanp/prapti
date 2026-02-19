@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { ValidatedResponse, adapters } from "../src/index";
+import { ValidatedResponse } from "../src/index";
+import { zodAdapter } from "../src/adapters/zod";
 import { z } from "zod";
 
 describe("ValidatedResponse Fixes", () => {
@@ -44,7 +45,7 @@ describe("ValidatedResponse Fixes", () => {
     
     const validatedResponse = new ValidatedResponse(
       response,
-      adapters.zod,
+      zodAdapter,
       schema // responseSchema
     );
 
@@ -64,7 +65,7 @@ describe("ValidatedResponse Fixes", () => {
     
     const validatedResponse = new ValidatedResponse(
       response,
-      adapters.zod,
+      zodAdapter,
       schema
     );
 

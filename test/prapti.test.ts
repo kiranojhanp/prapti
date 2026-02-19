@@ -1,9 +1,10 @@
 import { describe, expect, test, mock, beforeAll, afterAll } from "bun:test";
-import { Prapti, adapters } from "../src/index";
+import { Prapti } from "../src/index";
+import { zodAdapter } from "../src/adapters/zod";
 import { z } from "zod";
 
 describe("Prapti Class Fixes", () => {
-  const prapti = new Prapti(adapters.zod);
+  const prapti = new Prapti(zodAdapter);
   const originalFetch = global.fetch;
 
   afterAll(() => {

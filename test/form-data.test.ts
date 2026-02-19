@@ -1,12 +1,13 @@
 import { describe, test, expect, beforeAll } from "bun:test";
-import { Prapti, adapters } from "../src/index";
+import { Prapti } from "../src/index";
+import { zodAdapter } from "../src/adapters/zod";
 import { z } from "zod";
 
 describe("FormData and URLSearchParams validation", () => {
   let prapti: Prapti<z.ZodSchema>;
 
   beforeAll(() => {
-    prapti = new Prapti(adapters.zod);
+    prapti = new Prapti(zodAdapter);
   });
 
   describe("FormData request validation", () => {
@@ -231,7 +232,7 @@ describe("FormData and URLSearchParams validation", () => {
       });
 
       // Validate manually for this test
-      const validatedParams = adapters.zod.parse(QueryParamsSchema, queryObj) as {
+      const validatedParams = zodAdapter.parse(QueryParamsSchema, queryObj) as {
         q: string;
         page: number;
         limit?: string;

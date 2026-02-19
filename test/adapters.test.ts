@@ -2,7 +2,9 @@ import { describe, test, expect } from "bun:test";
 import { z } from "zod";
 import * as v from "valibot";
 import * as yup from "yup";
-import { adapters } from "../src/index";
+import { zodAdapter } from "../src/adapters/zod";
+import { valibotAdapter } from "../src/adapters/valibot";
+import { yupAdapter } from "../src/adapters/yup";
 
 describe("Adapters", () => {
   test("zod adapter should work", () => {
@@ -12,7 +14,7 @@ describe("Adapters", () => {
     });
 
     const data = { id: 1, name: "Test" };
-    const result = adapters.zod.parse(schema, data);
+    const result = zodAdapter.parse(schema, data);
     expect(result).toEqual(data);
   });
 
@@ -23,7 +25,7 @@ describe("Adapters", () => {
     });
 
     const data = { id: 1, name: "Test" };
-    const result = adapters.valibot.parse(schema, data);
+    const result = valibotAdapter.parse(schema, data);
     expect(result).toEqual(data);
   });
 
@@ -34,7 +36,7 @@ describe("Adapters", () => {
     });
 
     const data = { id: 1, name: "Test" };
-    const result = adapters.yup.parse(schema, data);
+    const result = yupAdapter.parse(schema, data);
     expect(result).toEqual(data);
   });
 });

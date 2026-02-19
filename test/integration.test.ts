@@ -1,5 +1,6 @@
 import { describe, test, expect, beforeAll } from "bun:test";
-import { Prapti, adapters, prapti } from "../src/index";
+import { Prapti, prapti } from "../src/index";
+import { zodAdapter } from "../src/adapters/zod";
 import { z } from "zod";
 
 // Zod schemas for JSONPlaceholder API
@@ -59,7 +60,7 @@ describe("Prapti with Zod and JSONPlaceholder", () => {
   let prapti: Prapti<z.ZodSchema>;
 
   beforeAll(() => {
-    prapti = new Prapti(adapters.zod);
+    prapti = new Prapti(zodAdapter);
   });
 
   describe("GET requests with type inference", () => {
@@ -345,16 +346,16 @@ describe("prapti factory function", () => {
   let praptiInstance: Prapti<z.ZodSchema>;
 
   beforeAll(() => {
-    praptiInstance = new Prapti(adapters.zod);
+    praptiInstance = new Prapti(zodAdapter);
   });
 
   test("should create prapti instance with Zod adapter", () => {
-    const instance = prapti(adapters.zod);
+    const instance = prapti(zodAdapter);
     expect(instance).toBeInstanceOf(Prapti);
   });
 
   test("should work with created instance", async () => {
-    const instance = prapti(adapters.zod);
+    const instance = prapti(zodAdapter);
 
     const response = await instance.fetch(
       "https://jsonplaceholder.typicode.com/users/1",
@@ -373,7 +374,7 @@ describe("Advanced Zod schema features", () => {
   let prapti: Prapti<z.ZodSchema>;
 
   beforeAll(() => {
-    prapti = new Prapti(adapters.zod);
+    prapti = new Prapti(zodAdapter);
   });
 
   test("should handle optional fields", async () => {
