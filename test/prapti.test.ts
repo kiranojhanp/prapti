@@ -1,5 +1,5 @@
 import { describe, expect, test, mock, beforeAll, afterAll } from "bun:test";
-import { Prapti, adapters } from "../../src/index";
+import { Prapti, adapters } from "../src/index";
 import { z } from "zod";
 
 describe("Prapti Class Fixes", () => {

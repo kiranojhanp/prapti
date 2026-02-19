@@ -2,7 +2,7 @@ import { describe, test, expect } from "bun:test";
 import { z } from "zod";
 import * as v from "valibot";
 import * as yup from "yup";
-import { adapters, createPrapti } from "../../src/index";
+import { adapters, createPrapti } from "../src/index";
 
 describe("Adapters", () => {
   test("zod adapter should work", () => {

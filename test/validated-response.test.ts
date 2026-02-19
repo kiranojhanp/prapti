@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { ValidatedResponse, adapters } from "../../src/index";
+import { ValidatedResponse, adapters } from "../src/index";
 import { z } from "zod";
 
 describe("ValidatedResponse Fixes", () => {
