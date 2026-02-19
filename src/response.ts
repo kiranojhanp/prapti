@@ -155,7 +155,7 @@ export class ValidatedResponse<T = unknown, THeadersSchema = any> extends Respon
         );
         return validatedFormData;
       } else {
-        // Fix: If schema returns non-object (e.g. primitive), we can't represent it as FormData.
+        // If schema returns non-object (e.g. primitive), we can't represent it as FormData.
         // It's likely a schema mismatch or transformation to non-FormData structure.
         // Throwing error is safer than returning unvalidated original data.
         throw new Error(
@@ -209,7 +209,7 @@ export class ValidatedResponse<T = unknown, THeadersSchema = any> extends Respon
         );
         return validatedParams;
       } else {
-        // Fix: Same as formData, must return object to be representable
+        // Same as formData, must return object to be representable as URLSearchParams.
         throw new Error(
           "Schema validation result is not an object, cannot be converted to URLSearchParams"
         );
