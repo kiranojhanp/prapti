@@ -1,6 +1,6 @@
 {
   "name": "prapti",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Type-safe HTTP client with runtime schema validation support for Zod, Valibot, Yup, and more",
   "files": [
     "dist/*",
