@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll } from "bun:test";
-import { Prapti, adapters, createPrapti } from "../src/index";
+import { Prapti, adapters, prapti } from "../src/index";
 import { z } from "zod";
 
 // Zod schemas for JSONPlaceholder API
@@ -67,7 +67,7 @@ describe("Prapti with Zod and JSONPlaceholder", () => {
       const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/users/1",
         {
-          responseSchema: UserSchema,
+          validate: { response: { body: UserSchema } },
         }
       );
 
@@ -92,7 +92,7 @@ describe("Prapti with Zod and JSONPlaceholder", () => {
       const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/users",
         {
-          responseSchema: UsersArraySchema,
+          validate: { response: { body: UsersArraySchema } },
         }
       );
 
@@ -112,7 +112,7 @@ describe("Prapti with Zod and JSONPlaceholder", () => {
       const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/posts/1",
         {
-          responseSchema: PostSchema,
+          validate: { response: { body: PostSchema } },
         }
       );
 
@@ -132,7 +132,7 @@ describe("Prapti with Zod and JSONPlaceholder", () => {
       const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/posts/1/comments",
         {
-          responseSchema: CommentsArraySchema,
+          validate: { response: { body: CommentsArraySchema } },
         }
       );
 
@@ -154,7 +154,7 @@ describe("Prapti with Zod and JSONPlaceholder", () => {
       const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/todos",
         {
-          responseSchema: TodosArraySchema,
+          validate: { response: { body: TodosArraySchema } },
         }
       );
 
@@ -173,7 +173,7 @@ describe("Prapti with Zod and JSONPlaceholder", () => {
       const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/users/999",
         {
-          responseSchema: UserSchema,
+          validate: { response: { body: UserSchema } },
         }
       );
 
@@ -195,8 +195,7 @@ describe("Prapti with Zod and JSONPlaceholder", () => {
         {
           method: "POST",
           body: newPostData,
-          requestSchema: CreatePostSchema,
-          responseSchema: PostSchema,
+          validate: { request: { body: CreatePostSchema }, response: { body: PostSchema } },
         }
       );
 
@@ -223,7 +222,7 @@ describe("Prapti with Zod and JSONPlaceholder", () => {
         prapti.fetch("https://jsonplaceholder.typicode.com/posts", {
           method: "POST",
           body: invalidPostData,
-          requestSchema: CreatePostSchema,
+          validate: { request: { body: CreatePostSchema } },
         })
       ).rejects.toThrow(); // Zod validation error
     });
@@ -247,8 +246,7 @@ describe("Prapti with Zod and JSONPlaceholder", () => {
         {
           method: "PUT",
           body: updateData,
-          requestSchema: UpdatePostSchema,
-          responseSchema: PostSchema,
+          validate: { request: { body: UpdatePostSchema }, response: { body: PostSchema } },
         }
       );
 
@@ -291,7 +289,7 @@ describe("Prapti with Zod and JSONPlaceholder", () => {
       const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/users/1",
         {
-          responseSchema: StrictUserSchema,
+          validate: { response: { body: StrictUserSchema } },
         }
       );
 
@@ -313,7 +311,7 @@ describe("Prapti with Zod and JSONPlaceholder", () => {
       const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/users/1",
         {
-          responseSchema: InvalidEmailUserSchema,
+          validate: { response: { body: InvalidEmailUserSchema } },
         }
       );
 
@@ -343,25 +341,25 @@ describe("Prapti with Zod and JSONPlaceholder", () => {
   });
 });
 
-describe("createprapti factory function", () => {
-  let prapti: Prapti<z.ZodSchema>;
+describe("prapti factory function", () => {
+  let praptiInstance: Prapti<z.ZodSchema>;
 
   beforeAll(() => {
-    prapti = new Prapti(adapters.zod);
+    praptiInstance = new Prapti(adapters.zod);
   });
 
   test("should create prapti instance with Zod adapter", () => {
-    const instance = createPrapti(adapters.zod);
+    const instance = prapti(adapters.zod);
     expect(instance).toBeInstanceOf(Prapti);
   });
 
   test("should work with created instance", async () => {
-    const prapti = createPrapti(adapters.zod);
+    const instance = prapti(adapters.zod);
 
-    const response = await prapti.fetch(
+    const response = await instance.fetch(
       "https://jsonplaceholder.typicode.com/users/1",
       {
-        responseSchema: UserSchema,
+        validate: { response: { body: UserSchema } },
       }
     );
 
@@ -384,7 +382,7 @@ describe("Advanced Zod schema features", () => {
     const response = await prapti.fetch(
       "https://jsonplaceholder.typicode.com/users/1",
       {
-        responseSchema: PartialUserSchema,
+        validate: { response: { body: PartialUserSchema } },
       }
     );
 
@@ -402,7 +400,7 @@ describe("Advanced Zod schema features", () => {
     const response = await prapti.fetch(
       "https://jsonplaceholder.typicode.com/posts/1",
       {
-        responseSchema: TransformedPostSchema,
+        validate: { response: { body: TransformedPostSchema } },
       }
     );
 
@@ -417,7 +415,7 @@ describe("Advanced Zod schema features", () => {
     const response = await prapti.fetch(
       "https://jsonplaceholder.typicode.com/posts/1",
       {
-        responseSchema: UserOrPostSchema,
+        validate: { response: { body: UserOrPostSchema } },
       }
     );
 

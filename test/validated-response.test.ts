@@ -4,7 +4,7 @@ import { z } from "zod";
 
 describe("ValidatedResponse Fixes", () => {
   // Test case for caching validated headers
-  test("getValidatedHeaders should cache the result", () => {
+  test("validatedHeaders should cache the result", () => {
     let parseCount = 0;
     const trackingAdapter = {
       parse: (schema: any, data: unknown) => {
@@ -25,11 +25,11 @@ describe("ValidatedResponse Fixes", () => {
     );
 
     // First access - should parse
-    validatedResponse.getValidatedHeaders();
+    validatedResponse.validatedHeaders;
     expect(parseCount).toBe(1);
 
     // Second access - should use cached result
-    validatedResponse.getValidatedHeaders();
+    validatedResponse.validatedHeaders;
     expect(parseCount).toBe(1); // Fails currently -> count increases every call
   });
 

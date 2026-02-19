@@ -34,7 +34,7 @@
 
 import { describe, expect, test, mock, beforeEach, afterAll } from "bun:test";
 import { z } from "zod";
-import { Prapti, createPrapti, adapters } from "../src/index";
+import { Prapti, prapti, adapters } from "../src/index";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -388,18 +388,16 @@ describe("7. Request options passthrough", () => {
     });
   }
 
-  test("custom options are NOT included in prapti-specific keys (requestSchema etc.)", async () => {
+  test("custom options are NOT included in prapti-specific keys (validate etc.)", async () => {
     useMockFetch(() => makeResponse());
     const prapti = new Prapti(adapters.zod);
     const schema = z.object({ id: z.number() });
     await prapti.fetch("https://example.com/", {
-      responseSchema: schema,
-      requestSchema: schema,
+      validate: { response: { body: schema }, request: { body: schema } },
       cache: "no-cache",
     });
     // prapti-specific keys must NOT be forwarded to native fetch
-    expect((capturedInit as Record<string, unknown>).responseSchema).toBeUndefined();
-    expect((capturedInit as Record<string, unknown>).requestSchema).toBeUndefined();
+    expect((capturedInit as Record<string, unknown>).validate).toBeUndefined();
     // native option must still arrive
     expect(capturedInit?.cache).toBe("no-cache");
   });
@@ -634,13 +632,13 @@ describe("13. ValidatedResponse with no schema is transparent", () => {
     expect(await res.text()).toBe("<html>hi</html>");
   });
 
-  test("getValidatedHeaders() without schema returns all response headers as plain object", async () => {
+  test("validatedHeaders without schema returns all response headers as plain object", async () => {
     useMockFetch(() =>
       makeResponse(null, { headers: { "X-Foo": "bar", "Content-Type": "text/plain" } })
     );
     const prapti = new Prapti(adapters.zod);
     const res = await prapti.fetch("https://example.com/");
-    const headers = res.getValidatedHeaders<Record<string, string>>();
+    const headers = res.validatedHeaders as Record<string, string>;
     expect(headers["x-foo"]).toBe("bar");
     expect(headers["content-type"]).toContain("text/plain");
   });
@@ -650,18 +648,18 @@ describe("13. ValidatedResponse with no schema is transparent", () => {
 // 14. createPrapti factory
 // ---------------------------------------------------------------------------
 
-describe("14. createPrapti factory", () => {
-  test("createPrapti(adapter) returns a Prapti instance", async () => {
+describe("14. prapti factory", () => {
+  test("prapti(adapter) returns a Prapti instance", async () => {
     useMockFetch(() => makeResponse(JSON.stringify({ created: true })));
-    const prapti = createPrapti(adapters.zod);
-    expect(prapti).toBeInstanceOf(Prapti);
-    const res = await prapti.fetch("https://example.com/");
+    const p = prapti(adapters.zod);
+    expect(p).toBeInstanceOf(Prapti);
+    const res = await p.fetch("https://example.com/");
     expect(res.status).toBe(200);
   });
 
-  test("multiple createPrapti instances are independent", async () => {
-    const zodPrapti = createPrapti(adapters.zod);
-    const valiPrapti = createPrapti(adapters.valibot);
+  test("multiple prapti instances are independent", async () => {
+    const zodPrapti = prapti(adapters.zod);
+    const valiPrapti = prapti(adapters.valibot);
     expect(zodPrapti).not.toBe(valiPrapti);
   });
 });
@@ -679,7 +677,7 @@ describe("15. Validation layer edge cases", () => {
       );
       const prapti = new Prapti(adapters.zod);
       const schema = z.object({ id: z.number(), name: z.string() });
-      const res = await prapti.fetch("https://example.com/", { responseSchema: schema });
+      const res = await prapti.fetch("https://example.com/", { validate: { response: { body: schema } } });
       const data = await res.json();
       expect(data.id).toBe(1);
       expect(data.name).toBe("alice");
@@ -695,7 +693,7 @@ describe("15. Validation layer edge cases", () => {
       const prapti = new Prapti(adapters.zod);
       // Schema transforms string to Date
       const schema = z.object({ timestamp: z.string().transform((s) => new Date(s)) });
-      const res = await prapti.fetch("https://example.com/", { responseSchema: schema });
+      const res = await prapti.fetch("https://example.com/", { validate: { response: { body: schema } } });
       const data = await res.json();
       expect(data.timestamp).toBeInstanceOf(Date);
     });
@@ -707,7 +705,7 @@ describe("15. Validation layer edge cases", () => {
       );
       const prapti = new Prapti(adapters.zod);
       const schema = z.object({ id: z.number() });
-      const res = await prapti.fetch("https://example.com/", { responseSchema: schema });
+      const res = await prapti.fetch("https://example.com/", { validate: { response: { body: schema } } });
       await expect(res.json()).rejects.toThrow();
     });
 
@@ -718,14 +716,14 @@ describe("15. Validation layer edge cases", () => {
       );
       const prapti = new Prapti(adapters.zod);
       const schema = z.object({ id: z.number() });
-      const res1 = await prapti.fetch("https://example.com/", { responseSchema: schema });
+      const res1 = await prapti.fetch("https://example.com/", { validate: { response: { body: schema } } });
       await expect(res1.json()).rejects.toThrow();
 
       // Second request with same prapti instance still works
       useMockFetch(() =>
         makeResponse(JSON.stringify({ id: 42 }), { headers: { "Content-Type": "application/json" } })
       );
-      const res2 = await prapti.fetch("https://example.com/", { responseSchema: schema });
+      const res2 = await prapti.fetch("https://example.com/", { validate: { response: { body: schema } } });
       const data = await res2.json();
       expect(data.id).toBe(42);
     });
@@ -737,7 +735,7 @@ describe("15. Validation layer edge cases", () => {
       );
       const prapti = new Prapti(adapters.zod);
       const schema = z.object({ id: z.number(), name: z.string().optional() });
-      const res = await prapti.fetch("https://example.com/", { responseSchema: schema });
+      const res = await prapti.fetch("https://example.com/", { validate: { response: { body: schema } } });
       const data = await res.json();
       expect(data.id).toBe(1);
       expect(data.name).toBeUndefined();
@@ -752,7 +750,7 @@ describe("15. Validation layer edge cases", () => {
       await prapti.fetch("https://example.com/", {
         method: "POST",
         body: JSON.stringify({ name: "bob", extra: "ignored" }),
-        requestSchema: schema,
+        validate: { request: { body: schema } },
       });
       const sent = JSON.parse(capturedInit?.body as string);
       expect(sent.name).toBe("bob");
@@ -768,7 +766,7 @@ describe("15. Validation layer edge cases", () => {
         prapti.fetch("https://example.com/", {
           method: "POST",
           body: JSON.stringify({ id: "not-a-number" }),
-          requestSchema: schema,
+          validate: { request: { body: schema } },
         })
       ).rejects.toThrow();
       expect(fetchCalled).toBe(false);
@@ -782,7 +780,7 @@ describe("15. Validation layer edge cases", () => {
       await prapti.fetch("https://example.com/", {
         method: "POST",
         body: '{"count": 5}',
-        requestSchema: schema,
+        validate: { request: { body: schema } },
       });
       const sent = JSON.parse(capturedInit?.body as string);
       expect(sent.count).toBe(5);
@@ -796,7 +794,7 @@ describe("15. Validation layer edge cases", () => {
       await prapti.fetch("https://example.com/", {
         method: "POST",
         body: "plain-not-json",
-        requestSchema: schema,
+        validate: { request: { body: schema } },
       });
       // validated data is the string itself, JSON.stringify("plain-not-json") = '"plain-not-json"'
       expect(capturedInit?.body).toBe(JSON.stringify("plain-not-json"));
@@ -812,7 +810,7 @@ describe("15. Validation layer edge cases", () => {
       await expect(
         prapti.fetch("https://example.com/", {
           headers: { authorization: "bad-token" },
-          requestHeadersSchema: schema,
+          validate: { request: { headers: schema } },
         })
       ).rejects.toThrow();
       expect(fetchCalled).toBe(false);
@@ -825,7 +823,7 @@ describe("15. Validation layer edge cases", () => {
       const schema = z.object({ authorization: z.string() });
       await prapti.fetch("https://example.com/", {
         headers: { authorization: "Bearer abc", "x-extra": "ignored" },
-        requestHeadersSchema: schema,
+        validate: { request: { headers: schema } },
       });
       const h = capturedInit?.headers as Headers;
       // validated headers override originals; validated result only has 'authorization'
@@ -840,14 +838,14 @@ describe("15. Validation layer edge cases", () => {
       const schema = z.object({ "x-version": z.string().transform((v) => `v${v}`) });
       await prapti.fetch("https://example.com/", {
         headers: { "x-version": "2" },
-        requestHeadersSchema: schema,
+        validate: { request: { headers: schema } },
       });
       expect((capturedInit?.headers as Headers).get("x-version")).toBe("v2");
     });
   });
 
   describe("15d. Response header schema validation", () => {
-    test("responseHeadersSchema validates headers and getValidatedHeaders() returns typed result", async () => {
+    test("responseHeadersSchema validates headers and validatedHeaders returns typed result", async () => {
       useMockFetch(() =>
         makeResponse(null, { headers: { "x-rate-limit": "100", "x-user-id": "42" } })
       );
@@ -856,8 +854,8 @@ describe("15. Validation layer edge cases", () => {
         "x-rate-limit": z.string().transform(Number),
         "x-user-id": z.string().transform(Number),
       });
-      const res = await prapti.fetch("https://example.com/", { responseHeadersSchema: schema });
-      const headers = res.getValidatedHeaders<{ "x-rate-limit": number; "x-user-id": number }>();
+      const res = await prapti.fetch("https://example.com/", { validate: { response: { headers: schema } } });
+      const headers = res.validatedHeaders as { "x-rate-limit": number; "x-user-id": number };
       expect(headers["x-rate-limit"]).toBe(100);
       expect(headers["x-user-id"]).toBe(42);
     });
@@ -870,7 +868,7 @@ describe("15. Validation layer edge cases", () => {
       const schema = z.object({ "x-required": z.coerce.number().int().positive() });
       // The constructor validates immediately, so the fetch promise rejects
       await expect(
-        prapti.fetch("https://example.com/", { responseHeadersSchema: schema })
+        prapti.fetch("https://example.com/", { validate: { response: { headers: schema } } })
       ).rejects.toThrow();
     });
 
@@ -879,7 +877,7 @@ describe("15. Validation layer edge cases", () => {
       const prapti = new Prapti(adapters.zod);
       const schema = z.object({ "x-request-id": z.string() });
       await expect(
-        prapti.fetch("https://example.com/", { responseHeadersSchema: schema })
+        prapti.fetch("https://example.com/", { validate: { response: { headers: schema } } })
       ).rejects.toThrow();
     });
   });
@@ -896,8 +894,7 @@ describe("15. Validation layer edge cases", () => {
       const res = await prapti.fetch("https://example.com/", {
         method: "POST",
         body: JSON.stringify({ name: "created", extra: "dropped" }),
-        requestSchema,
-        responseSchema,
+        validate: { request: { body: requestSchema }, response: { body: responseSchema } },
       });
       // request body was validated (unknown field stripped)
       const sent = JSON.parse(capturedInit?.body as string);

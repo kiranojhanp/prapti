@@ -26,7 +26,7 @@ describe("Header validation with Zod", () => {
       const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/posts/1",
         {
-          requestHeadersSchema: RequestHeadersSchema,
+          validate: { request: { headers: RequestHeadersSchema } },
           headers,
         }
       );
@@ -45,7 +45,7 @@ describe("Header validation with Zod", () => {
 
       await expect(
         prapti.fetch("https://jsonplaceholder.typicode.com/posts/1", {
-          requestHeadersSchema: RequestHeadersSchema,
+          validate: { request: { headers: RequestHeadersSchema } },
           headers,
         })
       ).rejects.toThrow(); // Should throw Zod validation error
@@ -62,7 +62,7 @@ describe("Header validation with Zod", () => {
       const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/posts/1",
         {
-          requestHeadersSchema: RequestHeadersSchema,
+          validate: { request: { headers: RequestHeadersSchema } },
           headers,
         }
       );
@@ -84,7 +84,7 @@ describe("Header validation with Zod", () => {
       const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/posts/1",
         {
-          requestHeadersSchema: RequestHeadersSchema,
+          validate: { request: { headers: RequestHeadersSchema } },
           headers,
         }
       );
@@ -104,14 +104,14 @@ describe("Header validation with Zod", () => {
       const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/posts/1",
         {
-          responseHeadersSchema: ResponseHeadersSchema,
+          validate: { response: { headers: ResponseHeadersSchema } },
         }
       );
 
       expect(response.ok).toBe(true);
 
       // Get validated headers with full type safety
-      const validatedHeaders = response.getValidatedHeaders();
+      const validatedHeaders = response.validatedHeaders;
       expect(validatedHeaders["content-type"]).toContain("json");
     });
 
@@ -124,12 +124,11 @@ describe("Header validation with Zod", () => {
       const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/posts/1",
         {
-          responseHeadersSchema: ResponseHeadersSchema,
+          validate: { response: { headers: ResponseHeadersSchema } },
         }
       );
 
-      type ExpectedHeaders = z.infer<typeof ResponseHeadersSchema>;
-      const headers = response.getValidatedHeaders<ExpectedHeaders>();
+      const headers = response.validatedHeaders as z.infer<typeof ResponseHeadersSchema>;
 
       // TypeScript should know these types
       expect(typeof headers["content-type"]).toBe("string");
@@ -144,7 +143,7 @@ describe("Header validation with Zod", () => {
 
       await expect(
         prapti.fetch("https://jsonplaceholder.typicode.com/posts/1", {
-          responseHeadersSchema: StrictResponseHeadersSchema,
+          validate: { response: { headers: StrictResponseHeadersSchema } },
         })
       ).rejects.toThrow(); // Should throw when required header is missing
     });
@@ -157,11 +156,11 @@ describe("Header validation with Zod", () => {
       const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/posts/1",
         {
-          responseHeadersSchema: ResponseHeadersSchema,
+          validate: { response: { headers: ResponseHeadersSchema } },
         }
       );
 
-      const headers = response.getValidatedHeaders();
+      const headers = response.validatedHeaders;
 
       // Headers should be normalized to lowercase
       expect(headers).toHaveProperty("content-type");
@@ -206,9 +205,10 @@ describe("Header validation with Zod", () => {
           method: "POST",
           headers,
           body: requestBody,
-          requestHeadersSchema: RequestHeadersSchema,
-          requestSchema: CreatePostSchema,
-          responseSchema: PostSchema,
+          validate: {
+            request: { body: CreatePostSchema, headers: RequestHeadersSchema },
+            response: { body: PostSchema },
+          },
         }
       );
 
@@ -232,15 +232,14 @@ describe("Header validation with Zod", () => {
       const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/users/1",
         {
-          responseHeadersSchema: ResponseHeadersSchema,
-          responseSchema: UserSchema,
+          validate: { response: { body: UserSchema, headers: ResponseHeadersSchema } },
         }
       );
 
       expect(response.ok).toBe(true);
 
       // Both headers and body should be validated and typed
-      const headers = response.getValidatedHeaders();
+      const headers = response.validatedHeaders;
       const user = await response.json();
 
       expect(headers["content-type"]).toContain("json");
@@ -265,12 +264,12 @@ describe("Header validation with Zod", () => {
       const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/posts/1",
         {
-          responseHeadersSchema: TransformedHeadersSchema,
+          validate: { response: { headers: TransformedHeadersSchema } },
         }
       );
 
       // Headers should be automatically typed with proper transformations
-      const transformedHeaders = response.getValidatedHeaders();
+      const transformedHeaders = response.validatedHeaders;
       expect(typeof transformedHeaders.isJson).toBe("boolean");
       expect(typeof transformedHeaders.hasLength).toBe("boolean");
       expect(transformedHeaders.isJson).toBe(true);

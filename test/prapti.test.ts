@@ -58,7 +58,7 @@ describe("Prapti Class Fixes", () => {
         "x-validated": "valid",
         "x-preserved": "preserved"
       },
-      requestHeadersSchema: headersSchema
+      validate: { request: { headers: headersSchema } }
     });
 
     expect(capturedHeaders?.get("x-validated")).toBe("valid");

@@ -31,7 +31,7 @@ describe("FormData and URLSearchParams validation", () => {
         {
           method: "POST",
           body: formData,
-          requestSchema: FormSchema,
+          validate: { request: { body: FormSchema } },
         }
       );
 
@@ -57,7 +57,7 @@ describe("FormData and URLSearchParams validation", () => {
         prapti.fetch("https://jsonplaceholder.typicode.com/posts", {
           method: "POST",
           body: formData,
-          requestSchema: FormSchema,
+          validate: { request: { body: FormSchema } },
         })
       ).rejects.toThrow();
     });
@@ -81,7 +81,7 @@ describe("FormData and URLSearchParams validation", () => {
         {
           method: "POST",
           body: formData,
-          requestSchema: MultiValueFormSchema,
+          validate: { request: { body: MultiValueFormSchema } },
         }
       );
 
@@ -111,7 +111,7 @@ describe("FormData and URLSearchParams validation", () => {
         {
           method: "POST", // Changed to POST since GET can't have body
           body: params,
-          requestSchema: SearchParamsSchema,
+          validate: { request: { body: SearchParamsSchema } },
         }
       );
 
@@ -134,7 +134,7 @@ describe("FormData and URLSearchParams validation", () => {
         prapti.fetch("https://jsonplaceholder.typicode.com/posts", {
           method: "POST", // Changed to POST since GET can't have body
           body: params,
-          requestSchema: SearchParamsSchema,
+          validate: { request: { body: SearchParamsSchema } },
         })
       ).rejects.toThrow();
     });
@@ -158,7 +158,7 @@ describe("FormData and URLSearchParams validation", () => {
         {
           method: "POST", // Changed to POST since GET can't have body
           body: params,
-          requestSchema: MultiValueParamsSchema,
+          validate: { request: { body: MultiValueParamsSchema } },
         }
       );
 
@@ -179,7 +179,7 @@ describe("FormData and URLSearchParams validation", () => {
       const response = await prapti.fetch(
         "https://jsonplaceholder.typicode.com/posts/1",
         {
-          responseSchema: ResponseParamsSchema,
+          validate: { response: { body: ResponseParamsSchema } },
         }
       );
 
