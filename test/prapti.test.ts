@@ -1,5 +1,9 @@
 import { describe, expect, test, mock, beforeAll, afterAll } from "bun:test";
-import type { SerializationAdapter } from "../src/index";
+import type {
+  HeaderValidationMode,
+  PraptiConfig,
+  SerializationAdapter,
+} from "../src/index";
 import { Prapti } from "../src/index";
 import { zodAdapter } from "../src/adapters/zod";
 import { z } from "zod";
@@ -32,7 +36,7 @@ describe("Prapti Class Fixes", () => {
     expect(capturedHeaders?.get("authorization")).toBe("Bearer token");
   });
 
-  test("should drop non-validated headers when requestHeadersSchema is provided", async () => {
+  test("should preserve non-validated headers when requestHeadersSchema is provided", async () => {
     let capturedHeaders: Headers | undefined;
     
     // @ts-ignore
@@ -51,6 +55,35 @@ describe("Prapti Class Fixes", () => {
         "x-preserved": "preserved"
       },
       validate: { request: { headers: headersSchema } }
+    });
+
+    expect(capturedHeaders?.get("x-validated")).toBe("valid");
+    expect(capturedHeaders?.get("x-preserved")).toBe("preserved");
+  });
+
+  test("should drop non-validated headers in strict mode", async () => {
+    let capturedHeaders: Headers | undefined;
+
+    // @ts-ignore
+    global.fetch = mock(async (input, init) => {
+      capturedHeaders = new Headers(init?.headers);
+      return new Response(JSON.stringify({ success: true }));
+    });
+
+    const headersSchema = z.object({
+      "x-validated": z.string(),
+    });
+
+    const strictPrapti = new Prapti(zodAdapter, {
+      headerValidationMode: "strict",
+    });
+
+    await strictPrapti.fetch("https://api.example.com", {
+      headers: {
+        "x-validated": "valid",
+        "x-preserved": "preserved",
+      },
+      validate: { request: { headers: headersSchema } },
     });
 
     expect(capturedHeaders?.get("x-validated")).toBe("valid");
@@ -150,7 +183,7 @@ describe("Prapti Class Fixes", () => {
     ).rejects.toThrow("Invalid JSON request body");
   });
 
-  test("should not parse JSON when content-type is not validated", async () => {
+  test("should parse JSON when content-type is provided even if not validated", async () => {
     // @ts-ignore
     global.fetch = mock(async () => {
       return new Response(JSON.stringify({ success: true }));
@@ -163,6 +196,34 @@ describe("Prapti Class Fixes", () => {
 
     await expect(
       prapti.fetch("https://api.example.com", {
+        method: "POST",
+        body: "{invalid-json}",
+        headers: {
+          "Content-Type": "application/json",
+          "x-validated": "ok",
+        },
+        validate: { request: { body: bodySchema, headers: headersSchema } },
+      })
+    ).rejects.toThrow("Invalid JSON request body");
+  });
+
+  test("should not parse JSON when content-type is not validated in strict mode", async () => {
+    // @ts-ignore
+    global.fetch = mock(async () => {
+      return new Response(JSON.stringify({ success: true }));
+    });
+
+    const bodySchema = z.object({ foo: z.string() });
+    const headersSchema = z.object({
+      "x-validated": z.string(),
+    });
+
+    const strictPrapti = new Prapti(zodAdapter, {
+      headerValidationMode: "strict",
+    });
+
+    await expect(
+      strictPrapti.fetch("https://api.example.com", {
         method: "POST",
         body: "{invalid-json}",
         headers: {
@@ -304,12 +365,22 @@ describe("Prapti Class Fixes", () => {
     expect(capturedHeaders?.get("content-type")).toBe("application/json");
   });
 
-  test("should allow type-only usage for serialization", () => {
+  test("should allow type-only usage for serialization and header mode", () => {
     const adapter: SerializationAdapter = {
       stringify: (value: unknown) => JSON.stringify(value),
       parse: (value: string) => JSON.parse(value),
       isJsonContentType: (contentType: string | null) => contentType === "application/json",
     };
+
+    const config: PraptiConfig = {
+      serializer: adapter,
+      headerValidationMode: "preserve",
+    };
+
+    const headerMode: HeaderValidationMode = "strict";
+
+    expect(config.headerValidationMode).toBe("preserve");
+    expect(headerMode).toBe("strict");
 
     expect(adapter.parse(adapter.stringify({ ok: true }))).toEqual({ ok: true });
   });

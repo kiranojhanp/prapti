@@ -107,8 +107,10 @@ console.log(`Rate limit remaining: ${headers["x-rate-limit-remaining"]}`);
 ```
 
 Notes:
-- When `validate.request.headers` is provided, Prapti sends only validated headers.
-- Include `content-type` in your header schema if you want it sent; otherwise it is dropped.
+- When `validate.request.headers` is provided, Prapti preserves original headers and overwrites them with validated values by default.
+- Use `headerValidationMode: "strict"` to send only validated headers.
+- If a header is validated to `null` or `undefined`, it is removed from the outgoing request.
+- Include `content-type` in your header schema if you want it validated; in strict mode, include it if you want it sent.
 
 </details>
 
@@ -174,6 +176,7 @@ const { fetch } = prapti(zodAdapter, {
     stringify: JSON.stringify,
     parse: JSON.parse,
   },
+  headerValidationMode: "preserve",
 });
 ```
 

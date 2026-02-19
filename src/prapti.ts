@@ -1,4 +1,5 @@
 import type {
+  HeaderValidationMode,
   InferOutput,
   PraptiConfig,
   PraptiOptions,
@@ -29,6 +30,7 @@ const defaultSerializer: SerializationAdapter = {
  */
 export class Prapti<TSchema = unknown> {
   private serializer: SerializationAdapter;
+  private headerValidationMode: HeaderValidationMode;
 
   /**
    * Create a new Prapti instance
@@ -40,6 +42,7 @@ export class Prapti<TSchema = unknown> {
     config: PraptiConfig = {}
   ) {
     this.serializer = config.serializer ?? defaultSerializer;
+    this.headerValidationMode = config.headerValidationMode ?? "preserve";
   }
 
   /**
@@ -166,6 +169,13 @@ export class Prapti<TSchema = unknown> {
 
     // Validate request headers if schema provided
     if (requestHeadersSchema) {
+      if (this.headerValidationMode === "preserve") {
+        // Preserve original headers by default
+        Object.entries(rawHeaders).forEach(([key, value]) => {
+          finalHeaders.set(key, value);
+        });
+      }
+
       const validatedHeaders = this.adapter.parse(
         requestHeadersSchema,
         rawHeaders
@@ -175,6 +185,7 @@ export class Prapti<TSchema = unknown> {
         Object.entries(validatedHeaders as Record<string, unknown>).forEach(
           ([key, value]) => {
             if (value === undefined || value === null) {
+              finalHeaders.delete(key);
               return;
             }
             finalHeaders.set(key, String(value));

@@ -27,10 +27,16 @@ export interface SerializationAdapter {
 }
 
 /**
+ * Header validation behavior when a schema is provided.
+ */
+export type HeaderValidationMode = "preserve" | "strict";
+
+/**
  * Optional configuration for serialization and header validation.
  */
 export interface PraptiConfig {
   serializer?: SerializationAdapter;
+  headerValidationMode?: HeaderValidationMode;
 }
 
 /**

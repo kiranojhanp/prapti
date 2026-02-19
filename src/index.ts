@@ -8,6 +8,7 @@ export { valibotAdapter } from "./adapters/valibot";
 export { ValidatedResponse } from "./response";
 export { Prapti, prapti } from "./prapti";
 export type {
+  HeaderValidationMode,
   InferOutput,
   PraptiConfig,
   PraptiOptions,

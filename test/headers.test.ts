@@ -11,7 +11,7 @@ describe("Header validation with Zod", () => {
   });
 
   describe("Request header validation", () => {
-    test("should drop unvalidated request headers by default", async () => {
+    test("should preserve unvalidated request headers by default", async () => {
       const originalFetch = global.fetch;
       let capturedHeaders: Headers | undefined;
 
@@ -35,7 +35,7 @@ describe("Header validation with Zod", () => {
         });
 
         expect(capturedHeaders?.get("x-validated")).toBe("valid");
-        expect(capturedHeaders?.get("x-unvalidated")).toBe(null);
+        expect(capturedHeaders?.get("x-unvalidated")).toBe("drop-me");
       } finally {
         global.fetch = originalFetch;
       }
