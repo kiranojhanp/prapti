@@ -1,6 +1,6 @@
 ![prapti](media/logo.png)
 
-# Prapti 🚀
+# Prapti
 
 _"प्राप्ति" (Prapti) - Sanskrit for "fetch" or "obtain"_
 
@@ -18,29 +18,23 @@ const data = await response.json(); // any type
 const validatedData = UserSchema.parse(data); // manual validation
 
 // With Prapti
-const { fetch: safeFetch } = createPrapti(adapters.zod);
-const response = await safeFetch("/api/users", {
-  responseSchema: UserSchema,
+const { fetch } = prapti(zodAdapter);
+const response = await fetch("/api/users", {
+  validate: { response: { body: UserSchema } },
 });
 const data = await response.json(); // fully typed + validated
 ```
 
-## Why switch from `fetch`?
+<details>
+<summary>Why switch from <code>fetch</code>?</summary>
 
-**🎯 Stop writing `any` types**  
-Get automatic TypeScript inference from your schemas. No more manual type assertions.
+- **Stop writing `any` types** — automatic TypeScript inference from your schemas, no manual type assertions.
+- **Catch API breaks at runtime** — validate responses against your schema and know immediately when APIs change.
+- **Eliminate validation boilerplate** — no more `schema.parse(await response.json())` on every call.
+- **Drop-in replacement** — same API as `fetch()` with optional validation. Add it only where you need it.
+- **Use any validation library** — bring your own: Zod, Valibot, Yup, or a custom adapter.
 
-**🛡️ Catch API breaks at runtime**  
-Validate responses against your schema. Know immediately when APIs change unexpectedly.
-
-**🔧 Eliminate validation boilerplate**  
-No more `schema.parse(await response.json())` on every API call. It's built-in.
-
-**⚡ Drop-in replacement**  
-Same API as `fetch()` with optional superpowers. Add validation only where you need it.
-
-**🎨 Use any validation library**  
-Bring your own: Zod, Valibot, Yup, Joi, or build custom adapters.
+</details>
 
 ## Install
 
@@ -51,7 +45,8 @@ npm install prapti zod
 ## Usage
 
 ```typescript
-import { createPrapti, adapters } from "prapti";
+import { prapti } from "prapti";
+import { zodAdapter } from "prapti/adapters/zod";
 import { z } from "zod";
 
 const UserSchema = z.object({
@@ -60,26 +55,31 @@ const UserSchema = z.object({
   email: z.string().email(),
 });
 
-// Create client with Zod adapter
-const { fetch: safeFetch } = createPrapti(adapters.zod);
+const { fetch } = prapti(zodAdapter);
 
 // GET with response validation
-const response = await safeFetch("/api/users/1", {
-  responseSchema: UserSchema,
+const response = await fetch("/api/users/1", {
+  validate: { response: { body: UserSchema } },
 });
-const user = await response.json(); // Type: { id: number, name: string, email: string }
+const user = await response.json(); // Type: { id: number; name: string; email: string }
 
 // POST with request + response validation
 const CreateUserSchema = UserSchema.omit({ id: true });
 
-const newUser = await safeFetch("/api/users", {
+const newUser = await fetch("/api/users", {
   method: "POST",
   body: { name: "John", email: "john@example.com" },
-  requestSchema: CreateUserSchema,
-  responseSchema: UserSchema,
+  validate: {
+    request: { body: CreateUserSchema },
+    response: { body: UserSchema },
+  },
 });
+```
 
-// With header validation
+<details>
+<summary>Header validation</summary>
+
+```typescript
 const RequestHeadersSchema = z.object({
   authorization: z.string().startsWith("Bearer "),
   "content-type": z.literal("application/json"),
@@ -90,85 +90,114 @@ const ResponseHeadersSchema = z.object({
   "x-rate-limit-remaining": z.string().transform(Number).pipe(z.number()),
 });
 
-const response = await safeFetch("/api/users", {
+const response = await fetch("/api/users", {
   headers: {
     Authorization: "Bearer token123",
     "Content-Type": "application/json",
   },
-  requestHeadersSchema: RequestHeadersSchema,
-  responseHeadersSchema: ResponseHeadersSchema,
+  validate: {
+    request: { headers: RequestHeadersSchema },
+    response: { headers: ResponseHeadersSchema },
+  },
 });
 
 // Get typed and validated headers
-const headers = response.getValidatedHeaders();
+const headers = response.validatedHeaders;
 console.log(`Rate limit remaining: ${headers["x-rate-limit-remaining"]}`);
 ```
 
-## API
+</details>
 
-### `Prapti(adapter)`
+## Adapters
 
-Main client class. Pass a validation adapter for your schema library.
-
-**Available adapters:**
-
-- `adapters.zod` - for Zod schemas
-
-**Methods:**
-
-- `fetch(url, options)` - Enhanced fetch with validation
-
-### `PraptiOptions`
-
-Extended fetch options with validation schemas:
-
-- `requestSchema` - Schema to validate request body
-- `responseSchema` - Schema to validate response data
-- `requestHeadersSchema` - Schema to validate request headers
-- `responseHeadersSchema` - Schema to validate response headers
-
-### `ValidatedResponse`
-
-Enhanced Response with validation:
-
-- `json()` - Parse and validate JSON
-- `text()` - Parse and validate text
-- `blob()` - Get blob (no validation)
-- `arrayBuffer()` - Get buffer (no validation)
-- `formData()` - Parse and validate form data
-- `getValidatedHeaders()` - Get validated headers as typed object
-
-## Custom Adapters
+Import only the adapter you use — unused adapters are not included in your bundle.
 
 ```typescript
-const customAdapter = {
-  parse: <T>(schema: MySchema, data: unknown): T => {
-    return schema.validate(data);
-  },
+import { zodAdapter } from "prapti/adapters/zod"; // Zod
+import { yupAdapter } from "prapti/adapters/yup"; // Yup
+import { valibotAdapter } from "prapti/adapters/valibot"; // Valibot
+```
+
+<details>
+<summary>Custom adapter</summary>
+
+Implement the `ValidationAdapter` interface to use any validation library:
+
+```typescript
+import type { ValidationAdapter } from "prapti";
+
+const customAdapter: ValidationAdapter<MySchema> = {
+  parse: (schema, data) => schema.validate(data),
 };
 
-const { fetch: safeFetch } = createPrapti(customAdapter);
+const { fetch } = prapti(customAdapter);
 ```
+
+</details>
+
+## API
+
+<details>
+<summary><code>prapti(adapter)</code></summary>
+
+Factory function. Pass a validation adapter and get back an enhanced `fetch`.
+
+```typescript
+const { fetch } = prapti(zodAdapter);
+```
+
+</details>
+
+<details>
+<summary><code>PraptiOptions</code></summary>
+
+All native `RequestInit` options plus a single `validate` block:
+
+```typescript
+validate?: {
+  request?: { body?: Schema; headers?: Schema };
+  response?: { body?: Schema; headers?: Schema };
+}
+```
+
+| Key                         | Description                            |
+| --------------------------- | -------------------------------------- |
+| `validate.request.body`     | Validate the outgoing request body     |
+| `validate.request.headers`  | Validate the outgoing request headers  |
+| `validate.response.body`    | Validate the incoming response body    |
+| `validate.response.headers` | Validate the incoming response headers |
+
+</details>
+
+<details>
+<summary><code>ValidatedResponse</code></summary>
+
+Extends the native `Response` with validation support.
+
+| Method / Property  | Description                                  |
+| ------------------ | -------------------------------------------- |
+| `json()`           | Parse and validate JSON response body        |
+| `text()`           | Parse text (no validation)                   |
+| `blob()`           | Get blob (no validation)                     |
+| `arrayBuffer()`    | Get buffer (no validation)                   |
+| `formData()`       | Parse and validate form data                 |
+| `validatedHeaders` | Validated response headers as a typed object |
+
+</details>
 
 ## Error Handling
 
 ```typescript
 try {
-  const response = await safeFetch("/api/users", {
-    responseSchema: UserSchema,
+  const response = await fetch("/api/users", {
+    validate: { response: { body: UserSchema } },
   });
   const users = await response.json();
 } catch (error) {
-  // Validation errors from your schema library
+  // Validation errors thrown by your schema library
   // Network errors from fetch
 }
 ```
-
-## Upcoming Features
-
-- 🔄 **Built-in adapters for Valibot, Yup, Joi, AJV**
-- 🎨 **Custom adapter utilities and helpers**
-- 🔄 **Streaming response validation**
 
 ## License
 
@@ -177,5 +206,5 @@ Released under [MIT](/LICENSE) by [@kiranojhanp](https://github.com/kiranojhanp)
 ---
 
 <div align="center">
-Made with ❤️ from 🇳🇵
+Made with love from 🇳🇵
 </div>
