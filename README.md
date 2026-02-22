@@ -2,47 +2,84 @@
 
 # Prapti
 
-_"प्राप्ति" (Prapti) - Sanskrit for "fetch" or "obtain"_
+> **प्राप्ति** _(Sanskrit: "to fetch")_ — extends the native `fetch` API with runtime schema validation.
 
-> A minimal, type-safe utility that extends the native `fetch` API with runtime schema validation.
+[![NPM Version](https://img.shields.io/npm/v/prapti)](https://www.npmjs.com/package/prapti)
+[![Bundle Size](https://badgen.net/bundlephobia/minzip/prapti)](https://bundlephobia.com/result?p=prapti)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue)](#license)
+[![Issues](https://img.shields.io/github/issues/kiranojhanp/prapti)](https://github.com/kiranojhanp/prapti/issues)
 
-![NPM Version](https://img.shields.io/npm/v/prapti)
-[![npm min + gzip size](https://badgen.net/bundlephobia/minzip/prapti)](https://bundlephobia.com/result?p=prapti)
-[![License](https://img.shields.io/badge/License-MIT-blue)](#license)
-[![issues - prapti](https://img.shields.io/github/issues/kiranojhanp/prapti)](https://github.com/kiranojhanp/prapti/issues)
+---
+
+## The problem
+
+Every API call has the same boilerplate:
 
 ```typescript
-// Without Prapti
 const response = await fetch("/api/users");
-const data = await response.json(); // any type
-const validatedData = UserSchema.parse(data); // manual validation
+const data = await response.json(); // typed as `any`
+const validated = UserSchema.parse(data); // manual, every time
+```
 
-// With Prapti
+Prapti moves the validation inside `fetch` so you don't have to think about it:
+
+```typescript
 const { fetch } = prapti(zodAdapter);
 const response = await fetch("/api/users", {
   validate: { response: { body: UserSchema } },
 });
-const data = await response.json(); // fully typed + validated
+const data = await response.json(); // typed, validated, done
 ```
 
-<details>
-<summary>Why switch from <code>fetch</code>?</summary>
+Same `fetch` API. No new concepts. Add it only to the calls that need it.
 
-- **Stop writing `any` types** — automatic TypeScript inference from your schemas, no manual type assertions.
-- **Catch API breaks at runtime** — validate responses against your schema and know immediately when APIs change.
-- **Eliminate validation boilerplate** — no more `schema.parse(await response.json())` on every call.
-- **Drop-in replacement** — same API as `fetch()` with optional validation. Add it only where you need it.
-- **Use any validation library** — bring your own: Zod, Valibot, Yup, or a custom adapter.
+---
 
-</details>
+## Table of contents
 
-## Install
+- [How it works](#how-it-works)
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [Usage](#usage)
+  - [GET with response validation](#get-with-response-validation)
+  - [POST with request and response validation](#post-with-request-and-response-validation)
+  - [Header validation](#header-validation)
+  - [Custom serialization](#custom-serialization)
+- [Adapters](#adapters)
+- [API reference](#api-reference)
+- [Error handling](#error-handling)
+- [License](#license)
+
+---
+
+## How it works
+
+```mermaid
+flowchart LR
+  A[Call prapti.fetch] --> B{Request validation?}
+  B -- No --> C[Native fetch]
+  B -- Yes --> D[Validate request body/headers]
+  D -- OK --> C
+  D -- Error --> E[Throw validation error]
+  C --> F[Get response]
+  F --> G{Response validation?}
+  G -- No --> H[Return ValidatedResponse]
+  G -- Yes --> I[Validate response body/headers]
+  I -- OK --> H
+  I -- Error --> J[Throw validation error]
+```
+
+---
+
+## Installation
 
 ```bash
 npm install prapti zod
 ```
 
-## Usage
+---
+
+## Quick start
 
 ```typescript
 import { prapti } from "prapti";
@@ -57,16 +94,36 @@ const UserSchema = z.object({
 
 const { fetch } = prapti(zodAdapter);
 
-// GET with response validation
 const response = await fetch("/api/users/1", {
   validate: { response: { body: UserSchema } },
 });
-const user = await response.json(); // Type: { id: number; name: string; email: string }
 
-// POST with request + response validation
+const user = await response.json();
+// Type: { id: number; name: string; email: string }
+```
+
+---
+
+## Usage
+
+### GET with response validation
+
+```typescript
+const response = await fetch("/api/users/1", {
+  validate: {
+    response: { body: UserSchema },
+  },
+});
+
+const user = await response.json(); // fully typed
+```
+
+### POST with request and response validation
+
+```typescript
 const CreateUserSchema = UserSchema.omit({ id: true });
 
-const newUser = await fetch("/api/users", {
+const response = await fetch("/api/users", {
   method: "POST",
   body: { name: "John", email: "john@example.com" },
   validate: {
@@ -74,10 +131,11 @@ const newUser = await fetch("/api/users", {
     response: { body: UserSchema },
   },
 });
+
+const newUser = await response.json();
 ```
 
-<details>
-<summary>Header validation</summary>
+### Header validation
 
 ```typescript
 const RequestHeadersSchema = z.object({
@@ -101,23 +159,19 @@ const response = await fetch("/api/users", {
   },
 });
 
-// Get typed and validated headers
 const headers = response.validatedHeaders;
 console.log(`Rate limit remaining: ${headers["x-rate-limit-remaining"]}`);
 ```
 
-Notes:
-- When `validate.request.headers` is provided, Prapti preserves original headers and overwrites them with validated values by default.
-- Use `headerValidationMode: "strict"` to send only validated headers.
-- If a header is validated to `null` or `undefined`, it is removed from the outgoing request.
-- Include `content-type` in your header schema if you want it validated; in strict mode, include it if you want it sent.
+A few things worth knowing about header validation:
 
-</details>
+- By default, Prapti preserves your original headers and overwrites them with validated values (`"preserve"` mode). Use `headerValidationMode: "strict"` to send _only_ the validated headers.
+- Headers validated to `null` or `undefined` are dropped from the outgoing request.
+- Prapti throws if a value in `RequestInit.headers` is `null` or `undefined`, matching native `Headers` behaviour.
 
-<details>
-<summary>Serialization</summary>
+### Custom serialization
 
-By default, Prapti uses `JSON.stringify` and `JSON.parse` for JSON payloads. You can supply a custom serializer per instance:
+By default, Prapti uses `JSON.stringify` and `JSON.parse`. You can swap these out per instance:
 
 ```typescript
 import superjson from "superjson";
@@ -134,22 +188,21 @@ const { fetch } = prapti(zodAdapter, {
 
 `ValidatedResponse.json()` uses the same serializer for response parsing.
 
-</details>
+For FormData, non-string values are stringified by default (matching native behaviour). Set `formDataValueMode: "strict"` to throw on `null`, `undefined`, or complex objects instead.
+
+---
 
 ## Adapters
 
-Import only the adapter you use — unused adapters are not included in your bundle.
+Import only the adapter you use — unused adapters are tree-shaken from your bundle.
 
 ```typescript
-import { zodAdapter } from "prapti/adapters/zod"; // Zod
-import { yupAdapter } from "prapti/adapters/yup"; // Yup
-import { valibotAdapter } from "prapti/adapters/valibot"; // Valibot
+import { zodAdapter } from "prapti/adapters/zod";
+import { yupAdapter } from "prapti/adapters/yup";
+import { valibotAdapter } from "prapti/adapters/valibot";
 ```
 
-<details>
-<summary>Custom adapter</summary>
-
-Implement the `ValidationAdapter` interface to use any validation library:
+To use a different validation library, implement `ValidationAdapter`:
 
 ```typescript
 import type { ValidationAdapter } from "prapti";
@@ -161,14 +214,13 @@ const customAdapter: ValidationAdapter<MySchema> = {
 const { fetch } = prapti(customAdapter);
 ```
 
-</details>
+---
 
-## API
+## API reference
 
-<details>
-<summary><code>prapti(adapter, config?)</code></summary>
+### `prapti(adapter, config?)`
 
-Factory function. Pass a validation adapter and get back an enhanced `fetch`.
+Returns an enhanced `fetch` bound to the provided adapter.
 
 ```typescript
 const { fetch } = prapti(zodAdapter, {
@@ -176,50 +228,47 @@ const { fetch } = prapti(zodAdapter, {
     stringify: JSON.stringify,
     parse: JSON.parse,
   },
-  headerValidationMode: "preserve",
+  headerValidationMode: "preserve", // "preserve" | "strict"
 });
 ```
 
-</details>
+### `PraptiOptions`
 
-<details>
-<summary><code>PraptiOptions</code></summary>
-
-All native `RequestInit` options plus a single `validate` block:
+All native `RequestInit` options, plus an optional `validate` block:
 
 ```typescript
 validate?: {
-  request?: { body?: Schema; headers?: Schema };
+  request?:  { body?: Schema; headers?: Schema };
   response?: { body?: Schema; headers?: Schema };
 }
 ```
 
-| Key                         | Description                            |
+| Field                       | Description                            |
 | --------------------------- | -------------------------------------- |
 | `validate.request.body`     | Validate the outgoing request body     |
 | `validate.request.headers`  | Validate the outgoing request headers  |
 | `validate.response.body`    | Validate the incoming response body    |
 | `validate.response.headers` | Validate the incoming response headers |
 
-</details>
+### `ValidatedResponse`
 
-<details>
-<summary><code>ValidatedResponse</code></summary>
+Extends the native `Response` with:
 
-Extends the native `Response` with validation support.
+| Method / property  | Description                                      |
+| ------------------ | ------------------------------------------------ |
+| `json()`           | Parse and validate the JSON response body        |
+| `text()`           | Parse response as plain text (no validation)     |
+| `blob()`           | Get response as a Blob (no validation)           |
+| `arrayBuffer()`    | Get response as an ArrayBuffer (no validation)   |
+| `formData()`       | Parse and validate form data                     |
+| `validatedHeaders` | Validated response headers as a typed object     |
+| `rawHeaders()`     | All response headers as a lowercase-keyed object |
 
-| Method / Property  | Description                                  |
-| ------------------ | -------------------------------------------- |
-| `json()`           | Parse and validate JSON response body        |
-| `text()`           | Parse text (no validation)                   |
-| `blob()`           | Get blob (no validation)                     |
-| `arrayBuffer()`    | Get buffer (no validation)                   |
-| `formData()`       | Parse and validate form data                 |
-| `validatedHeaders` | Validated response headers as a typed object |
+---
 
-</details>
+## Error handling
 
-## Error Handling
+Prapti throws two kinds of errors: validation errors from your schema library, and network errors from the underlying `fetch`.
 
 ```typescript
 try {
@@ -228,17 +277,20 @@ try {
   });
   const users = await response.json();
 } catch (error) {
-  // Validation errors thrown by your schema library
-  // Network errors from fetch
+  if (error instanceof ZodError) {
+    // API response didn't match UserSchema
+  } else {
+    // Network or fetch error
+  }
 }
 ```
 
+---
+
 ## License
 
-Released under [MIT](/LICENSE) by [@kiranojhanp](https://github.com/kiranojhanp).
+Released under the [MIT License](/LICENSE) by [@kiranojhanp](https://github.com/kiranojhanp/prapti).
 
 ---
 
-<div align="center">
-Made with love from 🇳🇵
-</div>
+<div align="center">Made with ❤️ from 🇳🇵</div>
