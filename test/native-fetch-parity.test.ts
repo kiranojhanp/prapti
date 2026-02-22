@@ -799,8 +799,71 @@ describe("15. Validation layer edge cases", () => {
         body: "plain-not-json",
         validate: { request: { body: schema } },
       });
-      // validated data is the string itself, JSON.stringify("plain-not-json") = '"plain-not-json"'
-      expect(capturedInit?.body).toBe(JSON.stringify("plain-not-json"));
+      // validated data is the string itself; no content-type provided so raw string should be preserved
+      expect(capturedInit?.body).toBe("plain-not-json");
+    });
+
+    test("requestSchema with string body and application/json Content-Type accepts JSON string literal", async () => {
+      useMockFetch(() => makeResponse());
+      const prapti = new Prapti(zodAdapter);
+      const schema = z.string();
+      await prapti.fetch("https://example.com/", {
+        method: "POST",
+        body: JSON.stringify("hello"),
+        headers: { "Content-Type": "application/json" },
+        validate: { request: { body: schema } },
+      });
+      // JSON string value should be preserved
+      expect(capturedInit?.body).toBe(JSON.stringify("hello"));
+      expect((capturedInit?.headers as Headers).get("content-type")).toBe(
+        "application/json"
+      );
+    });
+
+    test("requestSchema with string body and vendor JSON Content-Type accepts JSON string literal", async () => {
+      useMockFetch(() => makeResponse());
+      const prapti = new Prapti(zodAdapter);
+      const schema = z.string();
+      await prapti.fetch("https://example.com/", {
+        method: "POST",
+        body: JSON.stringify("hello"),
+        headers: { "Content-Type": "application/vnd.api+json" },
+        validate: { request: { body: schema } },
+      });
+      expect(capturedInit?.body).toBe(JSON.stringify("hello"));
+      expect((capturedInit?.headers as Headers).get("content-type")).toBe(
+        "application/vnd.api+json"
+      );
+    });
+
+    test("requestSchema with string body and JSON Content-Type with charset accepts JSON string literal", async () => {
+      useMockFetch(() => makeResponse());
+      const prapti = new Prapti(zodAdapter);
+      const schema = z.string();
+      await prapti.fetch("https://example.com/", {
+        method: "POST",
+        body: JSON.stringify("hello"),
+        headers: { "Content-Type": "application/json; charset=utf-8" },
+        validate: { request: { body: schema } },
+      });
+      expect(capturedInit?.body).toBe(JSON.stringify("hello"));
+      expect((capturedInit?.headers as Headers).get("content-type")).toBe(
+        "application/json; charset=utf-8"
+      );
+    });
+
+    test("requestSchema with string body and application/json Content-Type rejects non-JSON string", async () => {
+      useMockFetch(() => makeResponse());
+      const prapti = new Prapti(zodAdapter);
+      const schema = z.string();
+      await expect(
+        prapti.fetch("https://example.com/", {
+          method: "POST",
+          body: "hello",
+          headers: { "Content-Type": "application/json" },
+          validate: { request: { body: schema } },
+        })
+      ).rejects.toThrow("Invalid JSON request body");
     });
   });
 

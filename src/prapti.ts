@@ -7,6 +7,12 @@ import type {
   ValidationAdapter,
 } from "./types";
 import { ValidatedResponse } from "./response";
+import {
+  formDataToObject,
+  objectToFormData,
+  objectToUrlSearchParams,
+  urlSearchParamsToObject,
+} from "./body-helpers";
 
 const defaultSerializer: SerializationAdapter = {
   stringify: (value: unknown) => JSON.stringify(value),
@@ -65,6 +71,7 @@ export class Prapti<TSchema = unknown> {
     if (Array.isArray(headers)) {
       const obj: Record<string, string> = {};
       headers.forEach(([key, value]) => {
+        if (value === undefined || value === null) return;
         obj[key.toLowerCase()] = String(value);
       });
       return obj;
@@ -73,53 +80,10 @@ export class Prapti<TSchema = unknown> {
     // Plain object - normalize keys to lowercase
     const obj: Record<string, string> = {};
     Object.entries(headers).forEach(([key, value]) => {
+      if (value === undefined || value === null) return;
       obj[key.toLowerCase()] = String(value);
     });
     return obj;
-  }
-
-  /**
-   * Convert FormData object to plain object for validation
-   * @private
-   */
-  private formDataToObject(formData: FormData): Record<string, unknown> {
-    const result: Record<string, unknown> = {};
-    formData.forEach((value, key) => {
-      // Handle multiple values for the same key
-      if (result[key] !== undefined) {
-        if (Array.isArray(result[key])) {
-          (result[key] as unknown[]).push(value);
-        } else {
-          result[key] = [result[key], value];
-        }
-      } else {
-        result[key] = value;
-      }
-    });
-    return result;
-  }
-
-  /**
-   * Convert URLSearchParams to plain object for validation
-   * @private
-   */
-  private urlSearchParamsToObject(
-    params: URLSearchParams
-  ): Record<string, unknown> {
-    const result: Record<string, unknown> = {};
-    params.forEach((value, key) => {
-      // Handle multiple values for the same key
-      if (result[key] !== undefined) {
-        if (Array.isArray(result[key])) {
-          (result[key] as unknown[]).push(value);
-        } else {
-          result[key] = [result[key], value];
-        }
-      } else {
-        result[key] = value;
-      }
-    });
-    return result;
   }
 
   private isJsonContentType(contentType: string | null): boolean {
@@ -227,9 +191,9 @@ export class Prapti<TSchema = unknown> {
             parsedBody = body;
           }
         } else if (body instanceof FormData) {
-          parsedBody = this.formDataToObject(body);
+          parsedBody = formDataToObject(body);
         } else if (body instanceof URLSearchParams) {
-          parsedBody = this.urlSearchParamsToObject(body);
+          parsedBody = urlSearchParamsToObject(body);
         } else {
           parsedBody = body;
         }
@@ -239,51 +203,35 @@ export class Prapti<TSchema = unknown> {
 
         // Process the validated data based on original body type
         if (body instanceof FormData) {
-          // Create new FormData with validated data
-          const validatedFormData = new FormData();
-          Object.entries(validatedData as Record<string, unknown>).forEach(
-            ([key, value]) => {
-              if (Array.isArray(value)) {
-                value.forEach((item) =>
-                  validatedFormData.append(key, item as string | Blob)
-                );
-              } else {
-                validatedFormData.append(key, value as string | Blob);
-              }
-            }
+          finalBody = objectToFormData(
+            validatedData as Record<string, unknown>
           );
-          finalBody = validatedFormData;
         } else if (body instanceof URLSearchParams) {
-          // Create new URLSearchParams with validated data
-          const validatedParams = new URLSearchParams();
-          Object.entries(validatedData as Record<string, unknown>).forEach(
-            ([key, value]) => {
-              if (Array.isArray(value)) {
-                value.forEach((item) =>
-                  validatedParams.append(key, String(item))
-                );
-              } else {
-                validatedParams.append(key, String(value));
-              }
-            }
+          finalBody = objectToUrlSearchParams(
+            validatedData as Record<string, unknown>
           );
-          finalBody = validatedParams;
         } else {
+          let usedJsonSerializer = false;
           if (typeof validatedData === "string") {
             const isJson = this.isJsonContentType(contentType);
-            const shouldSerializeString = contentType === null || isJson;
-            if (shouldSerializeString) {
+            if (isJson) {
               finalBody = this.serializer.stringify(validatedData);
+              usedJsonSerializer = true;
             } else {
               finalBody = validatedData;
             }
           } else {
             finalBody = this.serializer.stringify(validatedData);
+            usedJsonSerializer = true;
           }
 
           // Set content type if not already specified
           const canAutoSetContentType = !requestHeadersSchema;
-          if (canAutoSetContentType && !finalHeaders.has("Content-Type")) {
+          if (
+            usedJsonSerializer &&
+            canAutoSetContentType &&
+            !finalHeaders.has("Content-Type")
+          ) {
             finalHeaders.set("Content-Type", "application/json");
           }
         }
@@ -320,7 +268,8 @@ export class Prapti<TSchema = unknown> {
     // Return enhanced response with validation capabilities
     return new ValidatedResponse<
       TResponseSchema extends never ? unknown : InferOutput<TResponseSchema>,
-      TResponseHeadersSchema
+      TResponseHeadersSchema,
+      TSchema
     >(
       response,
       this.adapter,

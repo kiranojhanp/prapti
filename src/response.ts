@@ -1,4 +1,10 @@
 import type { ValidationAdapter, InferOutput, SerializationAdapter } from "./types";
+import {
+  formDataToObject,
+  objectToFormData,
+  objectToUrlSearchParams,
+  urlSearchParamsToObject,
+} from "./body-helpers";
 
 const defaultSerializer: SerializationAdapter = {
   stringify: (value: unknown) => JSON.stringify(value),
@@ -9,17 +15,25 @@ const defaultSerializer: SerializationAdapter = {
  * Enhanced Response class with validation-aware methods
  * Extends native Response to provide type-safe data parsing
  */
-export class ValidatedResponse<T = unknown, THeadersSchema = any> extends Response {
-  private validatedHeadersCache: any = undefined;
+export class ValidatedResponse<
+  T = unknown,
+  THeadersSchema = unknown,
+  TSchema = unknown
+> extends Response {
+  private validatedHeadersCache:
+    | InferOutput<THeadersSchema>
+    | Record<string, string>
+    | undefined = undefined;
 
   constructor(
     response: Response,
-    private adapter: ValidationAdapter<any>,
-    private responseSchema?: any,
-    private responseHeadersSchema?: THeadersSchema,
+    private adapter: ValidationAdapter<TSchema>,
+    private responseSchema?: TSchema,
+    private responseHeadersSchema?: THeadersSchema & TSchema,
     private serializer: SerializationAdapter = defaultSerializer
   ) {
-    super(response.body, response);
+    const baseResponse = response.bodyUsed ? response : response.clone();
+    super(baseResponse.body, baseResponse);
     Object.setPrototypeOf(this, ValidatedResponse.prototype);
 
     // Validate response headers if schema provided
@@ -43,7 +57,10 @@ export class ValidatedResponse<T = unknown, THeadersSchema = any> extends Respon
 
     // Validate headers - this will throw if validation fails
     // Store result in cache
-    this.validatedHeadersCache = this.adapter.parse(this.responseHeadersSchema, headersObj);
+    this.validatedHeadersCache = this.adapter.parse(
+      this.responseHeadersSchema,
+      headersObj
+    ) as InferOutput<THeadersSchema>;
   }
 
   /**
@@ -65,7 +82,10 @@ export class ValidatedResponse<T = unknown, THeadersSchema = any> extends Respon
       this.headers.forEach((value, key) => {
         headersObj[key.toLowerCase()] = value;
       });
-      this.validatedHeadersCache = this.adapter.parse(this.responseHeadersSchema, headersObj);
+      this.validatedHeadersCache = this.adapter.parse(
+        this.responseHeadersSchema,
+        headersObj
+      ) as InferOutput<THeadersSchema>;
       return this.validatedHeadersCache as R;
     }
 
@@ -130,37 +150,14 @@ export class ValidatedResponse<T = unknown, THeadersSchema = any> extends Respon
 
     if (this.responseSchema) {
       // Convert FormData to plain object for validation
-      const obj: Record<string, unknown> = {};
-      formData.forEach((value, key) => {
-        if (obj[key] !== undefined) {
-          if (Array.isArray(obj[key])) {
-            (obj[key] as unknown[]).push(value);
-          } else {
-            obj[key] = [obj[key], value];
-          }
-        } else {
-          obj[key] = value;
-        }
-      });
+      const obj = formDataToObject(formData);
 
       // Validate the object against schema
       const validatedData = this.adapter.parse(this.responseSchema, obj);
 
       // If validation changes data, create new FormData with validated values
       if (validatedData && typeof validatedData === "object") {
-        const validatedFormData = new FormData();
-        Object.entries(validatedData as Record<string, unknown>).forEach(
-          ([key, value]) => {
-            if (Array.isArray(value)) {
-              value.forEach((item) =>
-                validatedFormData.append(key, item as string | Blob)
-              );
-            } else {
-              validatedFormData.append(key, value as string | Blob);
-            }
-          }
-        );
-        return validatedFormData;
+        return objectToFormData(validatedData as Record<string, unknown>);
       } else {
         // If schema returns non-object (e.g. primitive), we can't represent it as FormData.
         // It's likely a schema mismatch or transformation to non-FormData structure.
@@ -184,37 +181,14 @@ export class ValidatedResponse<T = unknown, THeadersSchema = any> extends Respon
 
     if (this.responseSchema) {
       // Convert URLSearchParams to plain object for validation
-      const obj: Record<string, unknown> = {};
-      params.forEach((value, key) => {
-        if (obj[key] !== undefined) {
-          if (Array.isArray(obj[key])) {
-            (obj[key] as unknown[]).push(value);
-          } else {
-            obj[key] = [obj[key], value];
-          }
-        } else {
-          obj[key] = value;
-        }
-      });
+      const obj = urlSearchParamsToObject(params);
 
       // Validate the object against schema
       const validatedData = this.adapter.parse(this.responseSchema, obj);
 
       // If validation changes data, create new URLSearchParams with validated values
       if (validatedData && typeof validatedData === "object") {
-        const validatedParams = new URLSearchParams();
-        Object.entries(validatedData as Record<string, unknown>).forEach(
-          ([key, value]) => {
-            if (Array.isArray(value)) {
-              value.forEach((item) =>
-                validatedParams.append(key, String(item))
-              );
-            } else {
-              validatedParams.append(key, String(value));
-            }
-          }
-        );
-        return validatedParams;
+        return objectToUrlSearchParams(validatedData as Record<string, unknown>);
       } else {
         // Same as formData, must return object to be representable as URLSearchParams.
         throw new Error(
