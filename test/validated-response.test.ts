@@ -104,4 +104,98 @@ describe("ValidatedResponse Fixes", () => {
     expect(result).toEqual({ parsed: "not-json" });
     expect(parseCount).toBe(1);
   });
+
+  test("rawHeaders should return lowercase-keyed object without schema", () => {
+    const headers = new Headers({ "X-Custom": "Value", "Content-Type": "application/json" });
+    const response = new Response(null, { headers });
+    const validatedResponse = new ValidatedResponse(response, zodAdapter);
+
+    const raw = validatedResponse.rawHeaders();
+    expect(raw).toEqual({
+      "x-custom": "Value",
+      "content-type": "application/json",
+    });
+  });
+
+  test("rawHeaders should return lowercase-keyed object even with schema", () => {
+    const headers = new Headers({ "X-Custom": "Value" });
+    const response = new Response(null, { headers });
+    const schema = z.object({ "x-custom": z.string() });
+    const validatedResponse = new ValidatedResponse(
+      response,
+      zodAdapter,
+      undefined,
+      schema
+    );
+
+    const raw = validatedResponse.rawHeaders();
+    expect(raw).toEqual({ "x-custom": "Value" });
+  });
+
+  test("formData should stringify complex objects by default (native behavior)", async () => {
+    const formData = new FormData();
+    formData.append("profile", "ignored");
+    const response = new Response(formData);
+
+    const schema = z.object({
+      profile: z.string().transform(() => ({ name: "Ada", meta: { age: 42 } })),
+    });
+
+    const validatedResponse = new ValidatedResponse(response, zodAdapter, schema);
+
+    const result = await validatedResponse.formData();
+    expect(result.get("profile")).toBe("[object Object]");
+  });
+
+  test("formData should throw in strict mode when schema returns complex objects (suggest serializer)", async () => {
+    const formData = new FormData();
+    formData.append("profile", "ignored");
+    const response = new Response(formData);
+
+    const schema = z.object({
+      profile: z.string().transform(() => ({ name: "Ada", meta: { age: 42 } })),
+    });
+
+    const serializer = {
+      stringify: (value: unknown) => JSON.stringify(value),
+      parse: (value: string) => JSON.parse(value),
+      formDataValueMode: "strict",
+    } as any;
+
+    const validatedResponse = new ValidatedResponse(
+      response,
+      zodAdapter,
+      schema,
+      undefined,
+      serializer
+    );
+
+    await expect(validatedResponse.formData()).rejects.toThrow("superjson");
+  });
+
+  test("formData strict mode should throw on null/undefined values", async () => {
+    const formData = new FormData();
+    formData.append("value", "ignored");
+    const response = new Response(formData);
+
+    const schema = z.object({
+      value: z.string().transform(() => null),
+    });
+
+    const serializer = {
+      stringify: (value: unknown) => JSON.stringify(value),
+      parse: (value: string) => JSON.parse(value),
+      formDataValueMode: "strict",
+    } as any;
+
+    const validatedResponse = new ValidatedResponse(
+      response,
+      zodAdapter,
+      schema,
+      undefined,
+      serializer
+    );
+
+    await expect(validatedResponse.formData()).rejects.toThrow("FormData");
+  });
 });

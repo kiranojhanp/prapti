@@ -41,28 +41,23 @@ describe("Header validation with Zod", () => {
       }
     });
 
-    test("should omit null or undefined header values", async () => {
+    test("should throw on null or undefined header values", async () => {
       const originalFetch = global.fetch;
-      let capturedHeaders: Headers | undefined;
-
       // @ts-ignore
-      global.fetch = mock(async (_input, init) => {
-        capturedHeaders = new Headers(init?.headers);
+      global.fetch = mock(async () => {
         return new Response(JSON.stringify({ success: true }));
       });
 
       try {
-        await prapti.fetch("https://api.example.com", {
-          headers: {
-            "X-Valid": "ok",
-            "X-Null": null as unknown as string,
-            "X-Undefined": undefined as unknown as string,
-          },
-        });
-
-        expect(capturedHeaders?.get("x-valid")).toBe("ok");
-        expect(capturedHeaders?.has("x-null")).toBe(false);
-        expect(capturedHeaders?.has("x-undefined")).toBe(false);
+        await expect(
+          prapti.fetch("https://api.example.com", {
+            headers: {
+              "X-Valid": "ok",
+              "X-Null": null as unknown as string,
+              "X-Undefined": undefined as unknown as string,
+            },
+          })
+        ).rejects.toThrow("Invalid header value");
       } finally {
         global.fetch = originalFetch;
       }

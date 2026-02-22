@@ -334,6 +334,20 @@ describe("5. Header input variants", () => {
     await prapti.fetch("https://example.com/");
     expect(capturedInit?.headers).toBeInstanceOf(Headers);
   });
+
+  test("null or undefined header values throw", async () => {
+    useMockFetch(() => makeResponse());
+    const prapti = new Prapti(zodAdapter);
+    await expect(
+      prapti.fetch("https://example.com/", {
+        method: "POST",
+        headers: {
+          "X-Valid": "ok",
+          "X-Null": null as unknown as string,
+        },
+      })
+    ).rejects.toThrow("Invalid header value");
+  });
 });
 
 // ---------------------------------------------------------------------------

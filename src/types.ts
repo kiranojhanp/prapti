@@ -24,6 +24,8 @@ export interface SerializationAdapter {
   parse(value: string): unknown;
   /** Optional content-type check for JSON payloads. */
   isJsonContentType?: (contentType: string | null) => boolean;
+  /** Optional FormData handling mode for complex values. */
+  formDataValueMode?: "native" | "strict";
 }
 
 /**

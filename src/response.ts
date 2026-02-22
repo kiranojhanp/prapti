@@ -50,10 +50,7 @@ export class ValidatedResponse<
     if (!this.responseHeadersSchema) return;
 
     // Convert Headers to plain object for validation
-    const headersObj: Record<string, string> = {};
-    this.headers.forEach((value, key) => {
-      headersObj[key.toLowerCase()] = value;
-    });
+    const headersObj = this.rawHeaders();
 
     // Validate headers - this will throw if validation fails
     // Store result in cache
@@ -89,12 +86,18 @@ export class ValidatedResponse<
       return this.validatedHeadersCache as R;
     }
 
+    return this.rawHeaders() as unknown as R;
+  }
+
+  /**
+   * Get raw response headers as a lowercase-keyed object.
+   */
+  rawHeaders(): Record<string, string> {
     const headersObj: Record<string, string> = {};
     this.headers.forEach((value, key) => {
       headersObj[key.toLowerCase()] = value;
     });
-
-    return headersObj as unknown as R;
+    return headersObj;
   }
 
   // -------------------------
@@ -157,7 +160,10 @@ export class ValidatedResponse<
 
       // If validation changes data, create new FormData with validated values
       if (validatedData && typeof validatedData === "object") {
-        return objectToFormData(validatedData as Record<string, unknown>);
+        return objectToFormData(
+          validatedData as Record<string, unknown>,
+          this.serializer.formDataValueMode ?? "native"
+        );
       } else {
         // If schema returns non-object (e.g. primitive), we can't represent it as FormData.
         // It's likely a schema mismatch or transformation to non-FormData structure.

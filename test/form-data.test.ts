@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeAll } from "bun:test";
+import { describe, test, expect, beforeAll, mock } from "bun:test";
 import { Prapti } from "../src/index";
 import { zodAdapter } from "../src/adapters/zod";
 import { z } from "zod";
@@ -87,6 +87,44 @@ describe("FormData and URLSearchParams validation", () => {
       );
 
       expect(response.ok).toBe(true);
+    });
+
+    test("should throw in strict mode when validated FormData contains complex objects", async () => {
+      let fetchCalled = false;
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = mock(async () => {
+        fetchCalled = true;
+        return new Response(JSON.stringify({ ok: true }));
+      }) as unknown as typeof globalThis.fetch;
+
+      try {
+        const strictPrapti = new Prapti(zodAdapter, {
+          serializer: {
+            stringify: (value: unknown) => JSON.stringify(value),
+            parse: (value: string) => JSON.parse(value),
+            formDataValueMode: "strict",
+          } as any,
+        });
+
+        const formData = new FormData();
+        formData.append("profile", "ignored");
+
+        const schema = z.object({
+          profile: z.string().transform(() => ({ name: "Ada" })),
+        });
+
+        await expect(
+          strictPrapti.fetch("https://example.com/", {
+            method: "POST",
+            body: formData,
+            validate: { request: { body: schema } },
+          })
+        ).rejects.toThrow("superjson");
+
+        expect(fetchCalled).toBe(false);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
     });
   });
 

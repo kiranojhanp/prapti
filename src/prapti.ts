@@ -71,7 +71,9 @@ export class Prapti<TSchema = unknown> {
     if (Array.isArray(headers)) {
       const obj: Record<string, string> = {};
       headers.forEach(([key, value]) => {
-        if (value === undefined || value === null) return;
+        if (value === undefined || value === null) {
+          throw new Error(`Invalid header value for "${key}"`);
+        }
         obj[key.toLowerCase()] = String(value);
       });
       return obj;
@@ -80,7 +82,9 @@ export class Prapti<TSchema = unknown> {
     // Plain object - normalize keys to lowercase
     const obj: Record<string, string> = {};
     Object.entries(headers).forEach(([key, value]) => {
-      if (value === undefined || value === null) return;
+      if (value === undefined || value === null) {
+        throw new Error(`Invalid header value for "${key}"`);
+      }
       obj[key.toLowerCase()] = String(value);
     });
     return obj;
@@ -204,7 +208,8 @@ export class Prapti<TSchema = unknown> {
         // Process the validated data based on original body type
         if (body instanceof FormData) {
           finalBody = objectToFormData(
-            validatedData as Record<string, unknown>
+            validatedData as Record<string, unknown>,
+            this.serializer.formDataValueMode ?? "native"
           );
         } else if (body instanceof URLSearchParams) {
           finalBody = objectToUrlSearchParams(
