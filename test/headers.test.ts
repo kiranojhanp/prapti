@@ -1,66 +1,62 @@
-import { describe, test, expect, beforeAll, mock } from "bun:test";
+import { describe, test, expect, beforeAll, beforeEach, afterEach } from "bun:test";
 import { Prapti } from "../src/index";
 import { zodAdapter } from "../src/adapters/zod";
 import { z } from "zod";
+import { createFetchMock } from "./helpers/fetch-mock";
 
 describe("Header validation with Zod", () => {
   let prapti: Prapti<z.ZodSchema>;
+  const fetchMock = createFetchMock();
 
   beforeAll(() => {
     prapti = new Prapti(zodAdapter);
   });
 
+  beforeEach(() => {
+    fetchMock.reset();
+  });
+
+  afterEach(() => {
+    fetchMock.restore();
+  });
+
   describe("Request header validation", () => {
     test("should preserve unvalidated request headers by default", async () => {
-      const originalFetch = global.fetch;
-      let capturedHeaders: Headers | undefined;
-
-      // @ts-ignore
-      global.fetch = mock(async (input, init) => {
-        capturedHeaders = new Headers(init?.headers);
+      fetchMock.useMockFetch(async () => {
         return new Response(JSON.stringify({ success: true }));
       });
-
       const RequestHeadersSchema = z.object({
         "x-validated": z.string(),
       });
 
-      try {
-        await prapti.fetch("https://api.example.com", {
-          headers: {
-            "X-Validated": "valid",
-            "X-Unvalidated": "drop-me",
-          },
-          validate: { request: { headers: RequestHeadersSchema } },
-        });
+      await prapti.fetch("https://api.example.com", {
+        headers: {
+          "X-Validated": "valid",
+          "X-Unvalidated": "drop-me",
+        },
+        validate: { request: { headers: RequestHeadersSchema } },
+      });
 
-        expect(capturedHeaders?.get("x-validated")).toBe("valid");
-        expect(capturedHeaders?.get("x-unvalidated")).toBe("drop-me");
-      } finally {
-        global.fetch = originalFetch;
-      }
+      const { capturedInit } = fetchMock.getCaptured();
+      const capturedHeaders = new Headers(capturedInit?.headers);
+      expect(capturedHeaders.get("x-validated")).toBe("valid");
+      expect(capturedHeaders.get("x-unvalidated")).toBe("drop-me");
     });
 
     test("should throw on null or undefined header values", async () => {
-      const originalFetch = global.fetch;
-      // @ts-ignore
-      global.fetch = mock(async () => {
+      fetchMock.useMockFetch(async () => {
         return new Response(JSON.stringify({ success: true }));
       });
 
-      try {
-        await expect(
-          prapti.fetch("https://api.example.com", {
-            headers: {
-              "X-Valid": "ok",
-              "X-Null": null as unknown as string,
-              "X-Undefined": undefined as unknown as string,
-            },
-          })
-        ).rejects.toThrow("Invalid header value");
-      } finally {
-        global.fetch = originalFetch;
-      }
+      await expect(
+        prapti.fetch("https://api.example.com", {
+          headers: {
+            "X-Valid": "ok",
+            "X-Null": null as unknown as string,
+            "X-Undefined": undefined as unknown as string,
+          },
+        })
+      ).rejects.toThrow("Invalid header value");
     });
 
     test("should validate and send request headers", async () => {

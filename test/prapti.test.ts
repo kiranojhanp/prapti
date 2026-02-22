@@ -1,4 +1,4 @@
-import { describe, expect, test, mock, beforeAll, afterAll } from "bun:test";
+import { describe, expect, test, beforeEach, afterEach } from "bun:test";
 import type {
   HeaderValidationMode,
   PraptiConfig,
@@ -7,20 +7,24 @@ import type {
 import { Prapti } from "../src/index";
 import { zodAdapter } from "../src/adapters/zod";
 import { z } from "zod";
+import { createFetchMock } from "./helpers/fetch-mock";
 
 describe("Prapti Class Fixes", () => {
   const prapti = new Prapti(zodAdapter);
-  const originalFetch = global.fetch;
+  const fetchMock = createFetchMock();
 
-  afterAll(() => {
-    global.fetch = originalFetch;
+  beforeEach(() => {
+    fetchMock.reset();
+  });
+
+  afterEach(() => {
+    fetchMock.restore();
   });
 
   test("should preserve headers when no requestHeadersSchema is provided", async () => {
     let capturedHeaders: Headers | undefined;
     
-    // @ts-ignore
-    global.fetch = mock(async (input, init) => {
+    fetchMock.useMockFetch(async (input, init) => {
       capturedHeaders = new Headers(init?.headers);
       return new Response(JSON.stringify({ success: true }));
     });
@@ -39,8 +43,7 @@ describe("Prapti Class Fixes", () => {
   test("should preserve non-validated headers when requestHeadersSchema is provided", async () => {
     let capturedHeaders: Headers | undefined;
     
-    // @ts-ignore
-    global.fetch = mock(async (input, init) => {
+    fetchMock.useMockFetch(async (input, init) => {
       capturedHeaders = new Headers(init?.headers);
       return new Response(JSON.stringify({ success: true }));
     });
@@ -64,8 +67,7 @@ describe("Prapti Class Fixes", () => {
   test("should drop non-validated headers in strict mode", async () => {
     let capturedHeaders: Headers | undefined;
 
-    // @ts-ignore
-    global.fetch = mock(async (input, init) => {
+    fetchMock.useMockFetch(async (input, init) => {
       capturedHeaders = new Headers(init?.headers);
       return new Response(JSON.stringify({ success: true }));
     });
@@ -94,15 +96,13 @@ describe("Prapti Class Fixes", () => {
     let capturedBody: any;
     let capturedHeaders: Headers | undefined;
     
-    // @ts-ignore
-    global.fetch = mock(async (input, init) => {
+    fetchMock.useMockFetch(async (input, init) => {
       capturedBody = init?.body;
       capturedHeaders = new Headers(init?.headers);
       return new Response(JSON.stringify({ success: true }));
     });
 
     const payload = { foo: "bar" };
-    // @ts-ignore
     await prapti.fetch("https://api.example.com", {
       method: "POST",
       body: payload
@@ -120,8 +120,7 @@ describe("Prapti Class Fixes", () => {
   test("should NOT override existing Content-Type for JSON body", async () => {
     let capturedHeaders: Headers | undefined;
     
-    // @ts-ignore
-    global.fetch = mock(async (input, init) => {
+    fetchMock.useMockFetch(async (input, init) => {
       capturedHeaders = new Headers(init?.headers);
       return new Response(JSON.stringify({ success: true }));
     });
@@ -141,8 +140,7 @@ describe("Prapti Class Fixes", () => {
     let capturedBody: any;
     let capturedHeaders: Headers | undefined;
 
-    // @ts-ignore
-    global.fetch = mock(async (input, init) => {
+    fetchMock.useMockFetch(async (input, init) => {
       capturedBody = init?.body;
       capturedHeaders = new Headers(init?.headers);
       return new Response(JSON.stringify({ success: true }));
@@ -164,8 +162,7 @@ describe("Prapti Class Fixes", () => {
   });
 
   test("should throw when JSON content-type body is invalid JSON", async () => {
-    // @ts-ignore
-    global.fetch = mock(async () => {
+    fetchMock.useMockFetch(async () => {
       return new Response(JSON.stringify({ success: true }));
     });
 
@@ -184,8 +181,7 @@ describe("Prapti Class Fixes", () => {
   });
 
   test("should parse JSON when content-type is provided even if not validated", async () => {
-    // @ts-ignore
-    global.fetch = mock(async () => {
+    fetchMock.useMockFetch(async () => {
       return new Response(JSON.stringify({ success: true }));
     });
 
@@ -208,8 +204,7 @@ describe("Prapti Class Fixes", () => {
   });
 
   test("should not parse JSON when content-type is not validated in strict mode", async () => {
-    // @ts-ignore
-    global.fetch = mock(async () => {
+    fetchMock.useMockFetch(async () => {
       return new Response(JSON.stringify({ success: true }));
     });
 
@@ -238,8 +233,7 @@ describe("Prapti Class Fixes", () => {
   test("should skip undefined and null validated headers", async () => {
     let capturedHeaders: Headers | undefined;
 
-    // @ts-ignore
-    global.fetch = mock(async (input, init) => {
+    fetchMock.useMockFetch(async (input, init) => {
       capturedHeaders = new Headers(init?.headers);
       return new Response(JSON.stringify({ success: true }));
     });
@@ -268,8 +262,7 @@ describe("Prapti Class Fixes", () => {
     let capturedBody: any;
     let capturedHeaders: Headers | undefined;
 
-    // @ts-ignore
-    global.fetch = mock(async (input, init) => {
+    fetchMock.useMockFetch(async (input, init) => {
       capturedBody = init?.body;
       capturedHeaders = new Headers(init?.headers);
       return new Response(JSON.stringify({ success: true }));
@@ -294,8 +287,7 @@ describe("Prapti Class Fixes", () => {
   });
 
   test("should treat vendor JSON content-type as JSON for invalid string bodies", async () => {
-    // @ts-ignore
-    global.fetch = mock(async () => {
+    fetchMock.useMockFetch(async () => {
       return new Response(JSON.stringify({ success: true }));
     });
 
@@ -316,8 +308,7 @@ describe("Prapti Class Fixes", () => {
   test("should not treat application/jsonp as JSON for string body schema", async () => {
     let capturedBody: any;
 
-    // @ts-ignore
-    global.fetch = mock(async (input, init) => {
+    fetchMock.useMockFetch(async (input, init) => {
       capturedBody = init?.body;
       return new Response(JSON.stringify({ success: true }));
     });
@@ -349,8 +340,7 @@ describe("Prapti Class Fixes", () => {
 
     const customPrapti = new Prapti(zodAdapter, { serializer });
 
-    // @ts-ignore
-    global.fetch = mock(async (input, init) => {
+    fetchMock.useMockFetch(async (input, init) => {
       capturedBody = init?.body;
       capturedHeaders = new Headers(init?.headers);
       return new Response(JSON.stringify({ success: true }));
